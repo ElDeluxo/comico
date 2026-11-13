@@ -22,7 +22,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update || true
-          sudo apt-get install -y fakeroot libtinfo5 libtinfo6 || sudo apt-get install -y fakeroot libtinfo6 || true
+          sudo apt-get install -y fakeroot libtinfo5 libtinfo6 zlib1g-dev xz-utils || sudo apt-get install -y fakeroot libtinfo6 xz-utils || true
 
       - name: Setup Theos & iOS Cross Toolchain
         run: |
@@ -34,18 +34,22 @@ jobs:
           curl -sL https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz | tar -xJvf - -C ~/theos/toolchain/
           
           echo "Installing iOS SDKs (including iPhoneOS9.3.sdk)..."
+          rm -rf ~/theos/sdks
           git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
           
           echo "Installing ldid..."
           curl -sLo ~/theos/bin/ldid https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64
           chmod +x ~/theos/bin/ldid
           
+          echo "Setting environment variables..."
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "$HOME/theos/bin" >> $GITHUB_PATH
+          
           echo "Verifying clang..."
           ~/theos/toolchain/linux/iphone/bin/clang --version
 
       - name: Build Comico (armv7 + arm64)
         run: |
-          export THEOS=~/theos
           chmod 755 layout/DEBIAN/postinst layout/DEBIAN/postrm
           make package FINALPACKAGE=1
 
@@ -54,10 +58,6 @@ jobs:
           APP_PATH=$(find .theos -name "Comico.app" -type d | head -n 1)
           echo "Inspecting binary at: $APP_PATH/Comico"
           file "$APP_PATH/Comico"
-          
-          if [ -x ~/theos/toolchain/linux/iphone/bin/arm64-apple-darwin-lipo ]; then
-            ~/theos/toolchain/linux/iphone/bin/arm64-apple-darwin-lipo -info "$APP_PATH/Comico" || true
-          fi
 
       - name: Package IPA
         run: |
@@ -83,3 +83,14 @@ jobs:
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
           retention-days: 30
+
+      - name: Print Debug Info on Failure
+        if: failure()
+        run: |
+          echo "=== Debug Info ==="
+          pwd
+          ls -la
+          echo "=== Theos contents ==="
+          ls -la ~/theos || true
+          echo "=== Toolchain binaries ==="
+          ls -la ~/theos/toolchain/linux/iphone/bin || true
