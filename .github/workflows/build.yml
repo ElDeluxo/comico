@@ -50,8 +50,20 @@ jobs:
 
       - name: Build Comico (armv7 + arm64)
         run: |
-          chmod 755 layout/DEBIAN/postinst layout/DEBIAN/postrm
-          make package FINALPACKAGE=1
+          chmod 755 layout/DEBIAN/postinst layout/DEBIAN/postrm || true
+          set -o pipefail
+          if make package FINALPACKAGE=1 2>&1 | tee build.log; then
+            echo "Build successful!"
+          else
+            echo "Build failed. Pushing log..."
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git checkout -B build-logs
+            git add -f build.log
+            git commit -m "theos build log"
+            git push origin build-logs --force || true
+            exit 1
+          fi
 
       - name: Verify Mach-O Architectures
         run: |
@@ -83,14 +95,3 @@ jobs:
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
           retention-days: 30
-
-      - name: Print Debug Info on Failure
-        if: failure()
-        run: |
-          echo "=== Debug Info ==="
-          pwd
-          ls -la
-          echo "=== Theos contents ==="
-          ls -la ~/theos || true
-          echo "=== Toolchain binaries ==="
-          ls -la ~/theos/toolchain/linux/iphone/bin || true
