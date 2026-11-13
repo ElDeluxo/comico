@@ -3,6 +3,7 @@ name: Build Comico Universal (iOS 9.0)
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 permissions:
@@ -126,3 +127,21 @@ jobs:
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
           retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: "Comico iOS 9.3 Universal (armv7 + arm64)"
+          files: |
+            Comico_Universal_iOS9.ipa
+            Comico_Universal_iOS9.deb
+          body: |
+            ### Comico v1.0.0 para iOS 9.3 (iPad / iPhone)
+            
+            - **Arquitectura Universal (armv7 + arm64):** Compatible con iPad de 32-bit (iOS 9.3) y dispositivos de 64-bit.
+            - **Sideloadly & Cydia/Filza Ready:** Bundle completo con `Info.plist` y estructura verificada.
+            - **Bypass de Certificados SSL/TLS:** Conexión HTTPS segura compatible con APIs modernas (MangaDex, CDNs de imágenes) en iOS 9.
+            - **Cómics diversos:** Cómics Occidentales (Marvel/DC/Indie en inglés), Manhwa coreano, Manga japonés y Manhua chino.
+            - **Interfaz iPad:** Cuadrícula de cómics adaptativa y controles limpios sin solapamiento de barra superior.
