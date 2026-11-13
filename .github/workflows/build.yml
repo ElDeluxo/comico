@@ -26,6 +26,7 @@ jobs:
       - name: Build Comico.app
         run: |
           mkdir -p build
+          set -o pipefail
           xcodebuild -project Comico/Comico.xcodeproj \
                      -scheme Comico \
                      -configuration Release \
@@ -35,7 +36,7 @@ jobs:
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGN_IDENTITY="" \
-                     AD_HOC_CODE_SIGNING_ALLOWED=YES
+                     AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log || (echo "=== ERRORS OCCURRED ===" && grep -i -E "error:|fatal:" build.log || tail -n 80 build.log; exit 1)
 
       - name: Package IPA
         run: |
