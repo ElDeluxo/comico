@@ -104,17 +104,17 @@ class FavoritesViewController: UIViewController, UICollectionViewDataSource, UIC
                 let title = info["title"] as? String ?? ""
                 let author = info["author"] as? String
                 let coverURLString = info["coverURL"] as? String
-                let status = info["status"] as? String
-                let coverURL: URL? = coverURLString != nil && !coverURLString!.isEmpty ? URL(string: coverURLString!) : nil
+                let statusStr = info["status"] as? String
+                let status = statusStr != nil ? ComicStatus(rawValue: statusStr!) : nil
 
                 let comic = Comic(
                     id: id,
                     title: title,
-                    description: nil,
-                    coverURL: coverURL,
+                    description: "",
+                    coverURL: coverURLString,
                     author: author,
                     status: status,
-                    tags: nil
+                    tags: []
                 )
                 comics.append(comic)
             }

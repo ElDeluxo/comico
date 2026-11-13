@@ -171,9 +171,9 @@ class HomeViewController: UIViewController, UICollectionViewDataSource, UICollec
         if let query = searchQuery, !query.isEmpty {
             APIService.shared.searchComics(query: query, page: currentPage) { result in
                 switch result {
-                case .success(let response):
-                    let hasMore = (response.offset + response.limit) < response.total
-                    completion(response.data, hasMore)
+                case .success(let comics):
+                    let hasMore = comics.count >= 20
+                    completion(comics, hasMore)
                 case .failure:
                     completion([], false)
                 }
@@ -181,9 +181,9 @@ class HomeViewController: UIViewController, UICollectionViewDataSource, UICollec
         } else {
             APIService.shared.fetchPopularComics(page: currentPage) { result in
                 switch result {
-                case .success(let response):
-                    let hasMore = (response.offset + response.limit) < response.total
-                    completion(response.data, hasMore)
+                case .success(let comics):
+                    let hasMore = comics.count >= 20
+                    completion(comics, hasMore)
                 case .failure:
                     completion([], false)
                 }

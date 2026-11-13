@@ -303,7 +303,7 @@ class ComicDetailViewController: UIViewController, UITableViewDataSource, UITabl
     private func configureWithComic() {
         titleLabel.text = comic.title
         authorLabel.text = comic.author ?? "Unknown Author"
-        statusBadge.text = " \(comic.status ?? "Unknown") "
+        statusBadge.text = " \(comic.status?.rawValue.capitalized ?? "Unknown") "
         descriptionLabel.text = comic.description
 
         if let coverURL = comic.coverURL {
@@ -319,11 +319,9 @@ class ComicDetailViewController: UIViewController, UITableViewDataSource, UITabl
             tagsStackView.removeArrangedSubview(subview)
             subview.removeFromSuperview()
         }
-        if let tags = comic.tags {
-            for tag in tags {
-                let badge = createTagBadge(tag)
-                tagsStackView.addArrangedSubview(badge)
-            }
+        for tag in comic.tags {
+            let badge = createTagBadge(tag.name)
+            tagsStackView.addArrangedSubview(badge)
         }
     }
 
@@ -391,8 +389,8 @@ class ComicDetailViewController: UIViewController, UITableViewDataSource, UITabl
             "id": comic.id,
             "title": comic.title,
             "author": comic.author ?? "",
-            "coverURL": comic.coverURL?.absoluteString ?? "",
-            "status": comic.status ?? ""
+            "coverURL": comic.coverURL ?? "",
+            "status": comic.status?.rawValue ?? ""
         ]
         UserDefaults.standard.set(dict, forKey: "comico_favorites_data")
         UserDefaults.standard.synchronize()
@@ -412,9 +410,9 @@ class ComicDetailViewController: UIViewController, UITableViewDataSource, UITabl
                 strongSelf.chapterActivityIndicator.stopAnimating()
 
                 switch result {
-                case .success(let response):
-                    strongSelf.chapters.append(contentsOf: response.data)
-                    strongSelf.hasMoreChapters = (response.offset + response.limit) < response.total
+                case .success(let newChapters):
+                    strongSelf.chapters.append(contentsOf: newChapters)
+                    strongSelf.hasMoreChapters = newChapters.count >= 20
                     strongSelf.loadMoreButton.isHidden = !strongSelf.hasMoreChapters
                     strongSelf.chaptersTableView.reloadData()
                     strongSelf.updateTableViewHeight()

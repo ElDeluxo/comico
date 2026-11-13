@@ -14,7 +14,7 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
     private var chapter: Chapter
     private var allChapters: [Chapter]
     private var currentChapterIndex: Int
-    private var pageURLs: [URL] = []
+    private var pageURLs: [String] = []
     private var pageImageViews: [UIImageView] = []
     private var currentPageIndex = 0
     private var readingMode: ReadingMode = .horizontal
@@ -219,7 +219,7 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
                 switch result {
                 case .success(let pages):
-                    strongSelf.pageURLs = pages.compactMap { $0.imageURL }
+                    strongSelf.pageURLs = pages.map { $0.imageURL }
                     strongSelf.setupPages()
                     strongSelf.updatePageIndicator()
                     strongSelf.preloadAdjacentPages()
@@ -308,8 +308,8 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
     private func loadPageImage(at index: Int) {
         guard index >= 0, index < pageURLs.count else { return }
 
-        let url = pageURLs[index]
-        ImageCache.shared.loadImage(from: url) { [weak self] image in
+        let urlString = pageURLs[index]
+        ImageCache.shared.loadImage(from: urlString) { [weak self] image in
             guard let strongSelf = self else { return }
             DispatchQueue.main.async {
                 if index < strongSelf.pageImageViews.count {
