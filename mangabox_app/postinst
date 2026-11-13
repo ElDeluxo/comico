@@ -5,23 +5,13 @@
 chown -R root:wheel /Applications/MangaBox.app 2>/dev/null || true
 chmod -R 0755 /Applications/MangaBox.app 2>/dev/null || true
 chmod 0755 /Applications/MangaBox.app/MangaBox 2>/dev/null || true
-chmod 0755 /Applications/MangaBox.app/start_daemon.sh 2>/dev/null || true
-chmod 0755 /Applications/MangaBox.app/comico_daemon.py 2>/dev/null || true
 
-# 2. Permisos y carga del demonio de fondo en el iPad
-if [ -f /Library/LaunchDaemons/com.comico.daemon.plist ]; then
-    chown root:wheel /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
-    chmod 0644 /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
-    launchctl unload /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
-    launchctl load /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
-fi
-
-# 3. Crear directorio para comics offline del usuario
+# 2. Directorio opcional para comics
 mkdir -p /var/mobile/Documents/Comics 2>/dev/null || true
 chown -R mobile:mobile /var/mobile/Documents/Comics 2>/dev/null || true
 chmod -R 0777 /var/mobile/Documents/Comics 2>/dev/null || true
 
-# 4. Actualizar cache de iconos en iOS
+# 3. Actualizar cache de iconos en iOS
 su mobile -c /usr/bin/uicache 2>/dev/null || /usr/bin/uicache 2>/dev/null || true
 
 exit 0

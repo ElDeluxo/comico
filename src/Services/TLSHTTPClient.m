@@ -1,4 +1,5 @@
 #import "TLSHTTPClient.h"
+#import "DebugViewController.h"
 
 // mbedTLS Headers
 #include <mbedtls/net_sockets.h>
@@ -145,6 +146,7 @@ static BOOL s_initialized = NO;
         char errBuf[128];
         mbedtls_strerror(ret, errBuf, sizeof(errBuf));
         NSString *errDesc = [NSString stringWithFormat:@"Error conectando a %@:%d (%s)", host, port, errBuf];
+        ComicoLog(@"❌ %@", errDesc);
         mbedtls_net_free(&server_fd);
         NSError *err = [NSError errorWithDomain:@"com.comico.tls" code:ret userInfo:@{NSLocalizedDescriptionKey: errDesc}];
         completion(nil, nil, err);
@@ -215,6 +217,7 @@ static BOOL s_initialized = NO;
     }
     
     NSString *method = request.HTTPMethod ?: @"GET";
+    ComicoLog(@"➡️ %@ %@", method, url.absoluteString);
     NSMutableString *rawReq = [NSMutableString stringWithFormat:@"%@ %@ HTTP/1.1\r\n", method, path];
     [rawReq appendFormat:@"Host: %@\r\n", host];
     [rawReq appendString:@"User-Agent: Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)\r\n"];
@@ -355,6 +358,7 @@ static BOOL s_initialized = NO;
         }
     }
     
+    ComicoLog(@"⬅️ [%ld] %@ (%lu KB)", (long)statusCode, url.lastPathComponent, (unsigned long)(bodyData.length / 1024));
     NSHTTPURLResponse *httpResp = [[NSHTTPURLResponse alloc] initWithURL:url statusCode:statusCode HTTPVersion:@"HTTP/1.1" headerFields:respHeaders];
     completion(bodyData, httpResp, nil);
 }

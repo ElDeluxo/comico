@@ -209,6 +209,12 @@
             if (!error && data.length > 0) {
                 UIImage *img = [UIImage imageWithData:data];
                 if (img) {
+                    // Limitar memoria: purgar páginas lejanas para evitar Jetsam OOM en 512MB RAM
+                    for (NSNumber *key in [self.pageCache.allKeys copy]) {
+                        if (abs(key.intValue - requestedIndex) > 1) {
+                            [self.pageCache removeObjectForKey:key];
+                        }
+                    }
                     self.pageCache[@(requestedIndex)] = img;
                     if (self.currentPage == requestedIndex) {
                         self.pageImageView.image = img;

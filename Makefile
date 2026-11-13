@@ -20,6 +20,7 @@ Comico_FILES = \
     src/Controllers/ComicDetailViewController.m \
     src/Controllers/ReaderViewController.m \
     src/Controllers/FavoritesViewController.m \
+    src/Controllers/DebugViewController.m \
     src/Controllers/MainTabBarController.m \
     $(wildcard vendor/mbedtls/library/*.c)
 

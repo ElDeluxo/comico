@@ -1,6 +1,7 @@
 #import "MainTabBarController.h"
 #import "HomeViewController.h"
 #import "FavoritesViewController.h"
+#import "DebugViewController.h"
 
 @implementation MainTabBarController
 
@@ -17,7 +18,12 @@
     UINavigationController *navFav = [[UINavigationController alloc] initWithRootViewController:favVC];
     navFav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Favoritos" image:nil tag:1];
     
-    self.viewControllers = @[navHome, navFav];
+    // Tab 3: Diagnóstico y Registro de Procesos
+    DebugViewController *debugVC = [[DebugViewController alloc] init];
+    UINavigationController *navDebug = [[UINavigationController alloc] initWithRootViewController:debugVC];
+    navDebug.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Diagnóstico" image:nil tag:2];
+    
+    self.viewControllers = @[navHome, navFav, navDebug];
     
     // Styling
     self.tabBar.barStyle = UIBarStyleBlack;
