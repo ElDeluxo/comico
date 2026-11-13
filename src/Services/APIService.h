@@ -2,11 +2,20 @@
 #import "Comic.h"
 #import "Chapter.h"
 
+typedef NS_ENUM(NSInteger, ComicCategory) {
+    ComicCategoryAll = 0,        // Todos los cómics y mangas
+    ComicCategoryWestern = 1,    // Cómics occidentales, americanos e indie (en)
+    ComicCategoryManhwa = 2,     // Webtoons y Manhwa coreanos (ko)
+    ComicCategoryManga = 3,      // Manga japonés (ja)
+    ComicCategoryManhua = 4      // Manhua chino (zh)
+};
+
 @interface APIService : NSObject
 
 + (instancetype)sharedService;
 
-- (void)fetchPopularComicsPage:(NSInteger)page
+- (void)fetchComicsForCategory:(ComicCategory)category
+                          page:(NSInteger)page
                     completion:(void(^)(NSArray<Comic *> *comics, NSError *error))completion;
 
 - (void)searchComicsWithQuery:(NSString *)query
@@ -21,4 +30,3 @@
                     completion:(void(^)(NSArray<NSString *> *pageURLs, NSError *error))completion;
 
 @end
-

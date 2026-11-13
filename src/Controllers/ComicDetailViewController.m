@@ -97,11 +97,11 @@ static NSString *const kChapterCellId = @"ChapterCell";
     authorLbl.text = [NSString stringWithFormat:@"Por: %@", self.comic.author ?: @"Desconocido"];
     [header addSubview:authorLbl];
     
-    // Status
+    // Status and Origin Badge
     UILabel *statusLbl = [[UILabel alloc] initWithFrame:CGRectMake(infoX, 84, infoW, 18)];
     statusLbl.textColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
-    statusLbl.font = [UIFont systemFontOfSize:12.0];
-    statusLbl.text = self.comic.status;
+    statusLbl.font = [UIFont boldSystemFontOfSize:12.0];
+    statusLbl.text = [NSString stringWithFormat:@"%@ • %@", self.comic.originBadge ?: @"Cómic", self.comic.status ?: @""];
     [header addSubview:statusLbl];
     
     // Favorite Button

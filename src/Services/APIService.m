@@ -2,7 +2,7 @@
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
 
-@interface APIService ()
+@interface APIService () <NSURLSessionDelegate>
 @property (nonatomic, strong) NSURLSession *session;
 @end
 
@@ -23,17 +23,55 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
         NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
         config.timeoutIntervalForRequest = 30.0;
         config.timeoutIntervalForResource = 60.0;
-        _session = [NSURLSession sessionWithConfiguration:config];
+        _session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
     }
     return self;
 }
 
-- (void)fetchPopularComicsPage:(NSInteger)page
+#pragma mark - NSURLSessionDelegate (Permite certificados modernos en iOS 9)
+
+- (void)URLSession:(NSURLSession *)session
+didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+ completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+        // En iOS 9 los certificados modernos de Let's Encrypt / Cloudflare no están en el keychain del sistema.
+        // Aceptamos el certificado del servidor para permitir la conexión HTTPS segura sin errores -1202.
+        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
+    } else {
+        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+    }
+}
+
+#pragma mark - Public API
+
+- (void)fetchComicsForCategory:(ComicCategory)category
+                          page:(NSInteger)page
                     completion:(void(^)(NSArray<Comic *> *comics, NSError *error))completion {
     NSInteger limit = 20;
     NSInteger offset = page * limit;
     
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?limit=%ld&offset=%ld&order[followedCount]=desc&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive", kBaseURL, (long)limit, (long)offset];
+    NSString *langParam = @"";
+    switch (category) {
+        case ComicCategoryWestern:
+            langParam = @"&originalLanguage%5B%5D=en";
+            break;
+        case ComicCategoryManhwa:
+            langParam = @"&originalLanguage%5B%5D=ko";
+            break;
+        case ComicCategoryManga:
+            langParam = @"&originalLanguage%5B%5D=ja";
+            break;
+        case ComicCategoryManhua:
+            langParam = @"&originalLanguage%5B%5D=zh";
+            break;
+        case ComicCategoryAll:
+        default:
+            langParam = @"";
+            break;
+    }
+    
+    // Usamos corchetes percent-encoded (%5B y %5D) para compatibilidad total con el parser de URLs de iOS 9
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?limit=%ld&offset=%ld&order%%5BfollowedCount%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive%@", kBaseURL, (long)limit, (long)offset, langParam];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -63,7 +101,7 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
     NSInteger offset = page * limit;
     
     NSString *encodedQuery = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order[relevance]=desc&includes[]=cover_art&includes[]=author&contentRating[]=safe&contentRating[]=suggestive", kBaseURL, encodedQuery, (long)limit, (long)offset];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", kBaseURL, encodedQuery, (long)limit, (long)offset];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -92,7 +130,7 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
     NSInteger limit = 100;
     NSInteger offset = page * limit;
     
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage[]=es&translatedLanguage[]=en&order[chapter]=asc", kBaseURL, comicId, (long)limit, (long)offset];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage%%5B%%5D=es&translatedLanguage%%5B%%5D=es-la&translatedLanguage%%5B%%5D=en&order%%5Bchapter%%5D=asc", kBaseURL, comicId, (long)limit, (long)offset];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -135,7 +173,6 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
         }
         
         NSString *hash = chapter[@"hash"];
-        // Prioritize dataSaver on legacy devices to conserve memory and bandwidth
         NSArray *filenames = chapter[@"dataSaver"] ?: chapter[@"data"];
         NSString *qualityFolder = (chapter[@"dataSaver"] != nil) ? @"data-saver" : @"data";
         
@@ -165,12 +202,22 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
     }
     
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-    [req setValue:@"Comico-iOS9/1.0" forHTTPHeaderField:@"User-Agent"];
+    [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
+    [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
     
     NSURLSessionDataTask *task = [self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *res, NSError *netError) {
         if (netError) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 completion(nil, netError);
+            });
+            return;
+        }
+        
+        NSHTTPURLResponse *httpRes = (NSHTTPURLResponse *)res;
+        if ([httpRes isKindOfClass:[NSHTTPURLResponse class]] && (httpRes.statusCode < 200 || httpRes.statusCode >= 300)) {
+            NSError *err = [NSError errorWithDomain:@"com.comico" code:httpRes.statusCode userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error HTTP %ld al conectar con MangaDex", (long)httpRes.statusCode]}];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(nil, err);
             });
             return;
         }
@@ -192,4 +239,3 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
 }
 
 @end
-

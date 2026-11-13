@@ -12,13 +12,49 @@
     
     NSDictionary *attributes = dict[@"attributes"];
     if ([attributes isKindOfClass:[NSDictionary class]]) {
-        // Título
+        // Título principal
         NSDictionary *titleDict = attributes[@"title"];
         if ([titleDict isKindOfClass:[NSDictionary class]]) {
             comic.title = titleDict[@"es"] ?: titleDict[@"en"] ?: titleDict[@"ja-ro"] ?: [titleDict.allValues firstObject];
         }
+        
+        // Si no hay título en inglés/español, buscar en altTitles
+        if (!comic.title || comic.title.length == 0 || [comic.title isEqualToString:@"Sin título"]) {
+            NSArray *altTitles = attributes[@"altTitles"];
+            if ([altTitles isKindOfClass:[NSArray class]]) {
+                for (NSDictionary *altDict in altTitles) {
+                    if ([altDict isKindOfClass:[NSDictionary class]]) {
+                        NSString *alt = altDict[@"es"] ?: altDict[@"en"];
+                        if (alt && alt.length > 0) {
+                            comic.title = alt;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
         if (!comic.title || comic.title.length == 0) {
             comic.title = @"Sin título";
+        }
+        
+        // Idioma original y badge de procedencia
+        NSString *origLang = attributes[@"originalLanguage"];
+        comic.originalLanguage = origLang ?: @"";
+        if ([origLang isEqualToString:@"en"]) {
+            comic.originBadge = @"Cómic Occidental";
+        } else if ([origLang isEqualToString:@"ko"]) {
+            comic.originBadge = @"Manhwa Coreano";
+        } else if ([origLang isEqualToString:@"zh"] || [origLang isEqualToString:@"zh-hk"]) {
+            comic.originBadge = @"Manhua Chino";
+        } else if ([origLang isEqualToString:@"ja"]) {
+            comic.originBadge = @"Manga Japonés";
+        } else if ([origLang isEqualToString:@"es"]) {
+            comic.originBadge = @"Cómic Español";
+        } else if ([origLang isEqualToString:@"fr"]) {
+            comic.originBadge = @"BD Francesa";
+        } else {
+            comic.originBadge = @"Cómic Global";
         }
         
         // Descripción
@@ -107,6 +143,8 @@
     if (self.author) dict[@"author"] = self.author;
     if (self.status) dict[@"status"] = self.status;
     if (self.coverURL) dict[@"coverURL"] = self.coverURL;
+    if (self.originalLanguage) dict[@"originalLanguage"] = self.originalLanguage;
+    if (self.originBadge) dict[@"originBadge"] = self.originBadge;
     if (self.tags) dict[@"tags"] = self.tags;
     return [dict copy];
 }
@@ -120,9 +158,10 @@
     c.author = dict[@"author"];
     c.status = dict[@"status"];
     c.coverURL = dict[@"coverURL"];
+    c.originalLanguage = dict[@"originalLanguage"];
+    c.originBadge = dict[@"originBadge"];
     c.tags = dict[@"tags"];
     return c;
 }
 
 @end
-
