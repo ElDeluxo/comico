@@ -318,3 +318,4 @@ def download_mangadex_chapter(chapter_id, chapter_title, parent_folder):
 
 if __name__ == "__main__":
     main()
+
