@@ -159,9 +159,9 @@ final class ImageCache {
     private func saveToDisk(image: UIImage, key: String) {
         let filePath = (diskCacheDirectory as NSString).appendingPathComponent(key)
         // Usar JPEG para portadas (mejor compresión), PNG para otros
-        if let data = UIImageJPEGRepresentation(image, 0.8) {
+        if let data = image.jpegData(compressionQuality: 0.8) {
             (data as NSData).write(toFile: filePath, atomically: true)
-        } else if let data = UIImagePNGRepresentation(image) {
+        } else if let data = image.pngData() {
             (data as NSData).write(toFile: filePath, atomically: true)
         }
     }

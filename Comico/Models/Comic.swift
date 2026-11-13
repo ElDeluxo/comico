@@ -66,10 +66,10 @@ struct Comic: Codable {
         if let relationships = mangaData.relationships {
             for rel in relationships {
                 if rel.type == "author", let attrs = rel.attributes {
-                    authorName = attrs["name"] as? String
+                    authorName = attrs["name"]?.stringValue
                 }
                 if rel.type == "cover_art", let attrs = rel.attributes {
-                    coverFileName = attrs["fileName"] as? String
+                    coverFileName = attrs["fileName"]?.stringValue
                 }
             }
         }
@@ -135,6 +135,11 @@ struct Chapter: Codable {
         self.pagesCount = pagesCount
         self.translatedLanguage = translatedLanguage
         self.publishDate = publishDate
+    }
+
+    /// Alias de conveniencia para `chapterNumber`.
+    var chapter: String? {
+        return chapterNumber
     }
 
     private static func parseDate(_ string: String) -> Date? {
