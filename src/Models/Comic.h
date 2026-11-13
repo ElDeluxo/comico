@@ -13,6 +13,7 @@
 @property (nonatomic, copy) NSArray<NSString *> *tags;
 
 + (instancetype)comicFromMangaDexJSON:(NSDictionary *)dict;
++ (instancetype)comicFromInternetArchiveDoc:(NSDictionary *)doc;
 - (NSDictionary *)toDictionary;
 + (instancetype)fromDictionary:(NSDictionary *)dict;
 

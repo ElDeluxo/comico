@@ -2,6 +2,34 @@
 
 @implementation Comic
 
++ (instancetype)comicFromInternetArchiveDoc:(NSDictionary *)doc {
+    if (![doc isKindOfClass:[NSDictionary class]]) return nil;
+    
+    NSString *ident = doc[@"identifier"];
+    if (!ident || ident.length == 0) return nil;
+    
+    Comic *c = [[Comic alloc] init];
+    c.comicId = [NSString stringWithFormat:@"ia_%@", ident];
+    c.title = doc[@"title"] ?: ident;
+    
+    id desc = doc[@"description"];
+    if ([desc isKindOfClass:[NSString class]]) {
+        c.comicDescription = desc;
+    } else if ([desc isKindOfClass:[NSArray class]]) {
+        c.comicDescription = [desc componentsJoinedByString:@" "];
+    } else {
+        c.comicDescription = @"Cómic Occidental de la biblioteca digital abierta.";
+    }
+    
+    c.author = @"Cómic Occidental";
+    c.status = @"Completado";
+    c.originalLanguage = @"en";
+    c.originBadge = @"Cómic Occidental";
+    c.tags = @[@"Cómic", @"Occidental", @"Novela Gráfica"];
+    c.coverURL = [NSString stringWithFormat:@"https://archive.org/services/img/%@", ident];
+    return c;
+}
+
 + (instancetype)comicFromMangaDexJSON:(NSDictionary *)dict {
     if (![dict isKindOfClass:[NSDictionary class]]) {
         return nil;

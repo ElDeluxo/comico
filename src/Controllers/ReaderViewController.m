@@ -202,7 +202,11 @@
     
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
     [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
-    [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+    if ([url.host containsString:@"archive.org"]) {
+        [req setValue:@"https://archive.org/" forHTTPHeaderField:@"Referer"];
+    } else {
+        [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+    }
     
     [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -240,7 +244,11 @@
         if (nextUrl) {
             NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:nextUrl];
             [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
-            [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+            if ([nextUrl.host containsString:@"archive.org"]) {
+                [req setValue:@"https://archive.org/" forHTTPHeaderField:@"Referer"];
+            } else {
+                [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+            }
             [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *r, NSError *e) {
                 if (!e && d.length > 0) {
                     UIImage *img = [UIImage imageWithData:d];
@@ -257,7 +265,7 @@
     // Limpiar páginas lejanas de la caché de RAM para evitar que iOS 9 mate el proceso por memoria (OOM Jetsam)
     for (NSNumber *key in [self.pageCache allKeys]) {
         int idx = [key intValue];
-        if (abs(idx - self.currentPage) > 3) {
+        if (abs(idx - self.currentPage) > 1) {
             [self.pageCache removeObjectForKey:key];
         }
     }

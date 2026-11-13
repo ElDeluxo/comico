@@ -149,22 +149,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.3.0
-          name: "Mangie iPad Edition & Comico (iOS 9.3 Universal)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.3.3' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Comico & Mangie {0}', github.ref_name) || 'Comico & Mangie v1.3.3 (iOS 9.0+ Universal)' }}
           files: |
-            Mangie_iPad_iOS9.deb
-            Mangie_iPad_iOS9.ipa
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
+            Mangie_iPad_iOS9.ipa
+            Mangie_iPad_iOS9.deb
           body: |
-            ### Mangie iPad Edition (v1.2.1) & Comico para iOS 9.3
-            
-            #### 🌟 Mangie iPad Edition (Recomendado):
-            - **Adaptado específicamente para iPad (Pantalla Completa Nativa):** Se habilitó `UIDeviceFamily = [1, 2]` y rotación completa para iPad (`UISupportedInterfaceOrientations~ipad`).
-            - **Sin barras negras ni modo 1x/2x:** Aprovecha toda la pantalla del iPad (768x1024 / Retina 1536x2048).
-            - **Conexión TLS 1.3 nativa (mbedTLS):** Conecta a MangaDex sin errores de SSL ni certificados obsoletos.
-            - **Cero crasheos:** Utiliza la pila de red y visor nativos ultraestables de Sam Cejko.
-            
-            #### Archivos para instalar:
-            - **`Mangie_iPad_iOS9.deb`**: Instalar con Filza / Cydia (Recomendado, no expira).
-            - **`Mangie_iPad_iOS9.ipa`**: Instalar con Sideloadly en PC.
+            ### Comico Universal v1.3.3 & Mangie iPad Edition para iOS 9
+
+            #### 🌟 Novedades principales en Comico v1.3.3:
+            - **Lectura Nativa de Cómics Occidentales (Internet Archive):** Acceso directo y nativo en Objective-C con cifrado TLS 1.3 (mbedTLS) a miles de cómics occidentales sin depender de PC ni de servidores externos. Incluye destacados como *Watchmen* (Alan Moore), *Batman: The Killing Joke*, *The Dark Knight Returns*, *V for Vendetta*, *The Long Halloween*, *The Amazing Spider-Man*, etc.
+            - **Búsqueda Universal Híbrida:** El buscador ahora realiza consultas simultáneas tanto a MangaDex (mangas) como a la biblioteca abierta de cómics de Internet Archive.
+            - **Paginación Inteligente por Entregas/Issues:** Capítulos generados automáticamente por números (issues) de ~34 páginas para novelas gráficas extensas, optimizando el consumo de ancho de banda y memoria.
+            - **Apartado de Diagnóstico & Procesos:** Nueva pestaña ("Diagnóstico") que muestra en vivo la consola de depuración con cada petición HTTP/TLS y su respuesta, monitor de RAM (Megabytes usados y libres), y botones para probar conectividad directa a MangaDex e Internet Archive con un toque.
+            - **Solución al Problema de Carga & Memoria (Anti-Jetsam OOM):** Purga agresiva de páginas de memoria RAM en `ReaderViewController`, evitando que iOS 9 cierre la aplicación por falta de memoria en iPads antiguos con 512 MB de RAM (iPad 2, iPad 3, iPad mini 1).
+
+            #### 📦 Archivos para Descargar e Instalar:
+            - **`Comico_Universal_iOS9.deb`** *(Recomendado para Jailbreak)*: Instalar directamente en el iPad mediante Filza File Manager o Cydia. No vence a los 7 días.
+            - **`Comico_Universal_iOS9.ipa`**: Instalar con Sideloadly / AltStore desde PC.
+            - **`Mangie_iPad_iOS9.deb` / `.ipa`**: Versión clásica MangaBox optimizada para iPad a pantalla completa.

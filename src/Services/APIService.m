@@ -1,7 +1,43 @@
 #import "APIService.h"
 #import "TLSHTTPClient.h"
+#import "DebugViewController.h"
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
+
+static NSArray<NSDictionary *> *s_popularWesternComics(void) {
+    return @[
+        @{
+            @"identifier": @"alan-moore-watchmen",
+            @"title": @"Watchmen (Alan Moore & Dave Gibbons)",
+            @"description": @"La aclamada novela gráfica sobre moralidad, poder y vigilantes en plena Guerra Fría. Edición completa."
+        },
+        @{
+            @"identifier": @"BatmanTheKillingJokeDeluxeHCEdition2008MinutemenY2K",
+            @"title": @"Batman: The Killing Joke (Deluxe)",
+            @"description": @"El origen definitivo del Joker creado por Alan Moore y Brian Bolland."
+        },
+        @{
+            @"identifier": @"BatmanTheDarkKnightReturns03of041986",
+            @"title": @"Batman: The Dark Knight Returns",
+            @"description": @"La legendaria obra maestra de Frank Miller donde un Bruce Wayne envejecido retoma el manto."
+        },
+        @{
+            @"identifier": @"v-for-vendetta-by-alan-moore-david-lloyd",
+            @"title": @"V for Vendetta (Alan Moore)",
+            @"description": @"En un futuro distópico, un misterioso anarquista inicia una revolución."
+        },
+        @{
+            @"identifier": @"batmanthelonghalloween1998digitalzoneempire",
+            @"title": @"Batman: The Long Halloween",
+            @"description": @"Un asesino serial llamado Holiday aterroriza Gotham City en los primeros años de Batman."
+        },
+        @{
+            @"identifier": @"871-amazing-spiderman",
+            @"title": @"The Amazing Spider-Man (Clásicos)",
+            @"description": @"Colección de aventuras clásicas del Hombre Araña de Marvel Comics."
+        }
+    ];
+}
 
 @interface APIService () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
 @property (nonatomic, strong) NSURLSession *session;
@@ -129,6 +165,18 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         
         NSArray *data = json[@"data"];
         NSMutableArray<Comic *> *comics = [NSMutableArray array];
+        
+        // 1. En la primera página, añadir cómics occidentales populares curados
+        if (page == 0) {
+            for (NSDictionary *doc in s_popularWesternComics()) {
+                Comic *c = [Comic comicFromInternetArchiveDoc:doc];
+                if (c) {
+                    [comics addObject:c];
+                }
+            }
+        }
+        
+        // 2. Añadir mangas de MangaDex
         if ([data isKindOfClass:[NSArray class]]) {
             for (NSDictionary *item in data) {
                 Comic *c = [Comic comicFromMangaDexJSON:item];
@@ -148,32 +196,153 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSInteger offset = page * limit;
     
     NSString *encodedQuery = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", [self effectiveBaseURL], encodedQuery, (long)limit, (long)offset];
     
-    NSURL *url = [NSURL URLWithString:urlStr];
-    [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
-        if (error) {
-            completion(nil, error);
-            return;
-        }
+    // 1. Buscar en Internet Archive para Cómics Occidentales
+    NSString *iaUrlStr = [NSString stringWithFormat:@"https://archive.org/advancedsearch.php?q=title%%3A(%@)%%20AND%%20mediatype%%3A(texts)%%20AND%%20-collection%%3A(inlibrary)&fl[]=identifier,title,description,downloads&sort[]=downloads+desc&output=json&rows=10", encodedQuery];
+    NSURL *iaUrl = [NSURL URLWithString:iaUrlStr];
+    
+    [self performDataTaskWithURL:iaUrl completion:^(NSDictionary *iaJson, NSError *iaErr) {
+        NSMutableArray<Comic *> *combinedComics = [NSMutableArray array];
         
-        NSArray *data = json[@"data"];
-        NSMutableArray<Comic *> *comics = [NSMutableArray array];
-        if ([data isKindOfClass:[NSArray class]]) {
-            for (NSDictionary *item in data) {
-                Comic *c = [Comic comicFromMangaDexJSON:item];
+        NSArray *docs = iaJson[@"response"][@"docs"];
+        if ([docs isKindOfClass:[NSArray class]]) {
+            for (NSDictionary *doc in docs) {
+                Comic *c = [Comic comicFromInternetArchiveDoc:doc];
                 if (c) {
-                    [comics addObject:c];
+                    [combinedComics addObject:c];
                 }
             }
         }
-        completion(comics, nil);
+        
+        // 2. Buscar en MangaDex
+        NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", [self effectiveBaseURL], encodedQuery, (long)limit, (long)offset];
+        NSURL *url = [NSURL URLWithString:urlStr];
+        [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
+            NSArray *data = json[@"data"];
+            if ([data isKindOfClass:[NSArray class]]) {
+                for (NSDictionary *item in data) {
+                    Comic *c = [Comic comicFromMangaDexJSON:item];
+                    if (c) {
+                        [combinedComics addObject:c];
+                    }
+                }
+            }
+            completion(combinedComics, nil);
+        }];
     }];
 }
 
 - (void)fetchChaptersForComicId:(NSString *)comicId
                            page:(NSInteger)page
                      completion:(void(^)(NSArray<Chapter *> *chapters, NSError *error))completion {
+    // 1. Cómics Occidentales de Internet Archive
+    if ([comicId hasPrefix:@"ia_"]) {
+        NSString *ident = [comicId substringFromIndex:3];
+        NSString *urlStr = [NSString stringWithFormat:@"https://archive.org/metadata/%@", ident];
+        NSURL *url = [NSURL URLWithString:urlStr];
+        [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
+            if (error || !json) {
+                completion(@[], error);
+                return;
+            }
+            
+            NSArray *files = json[@"files"];
+            NSMutableArray<NSDictionary *> *jp2Files = [NSMutableArray array];
+            NSMutableArray<NSString *> *pdfFiles = [NSMutableArray array];
+            
+            if ([files isKindOfClass:[NSArray class]]) {
+                for (NSDictionary *f in files) {
+                    NSString *fn = f[@"name"];
+                    if (![fn isKindOfClass:[NSString class]]) continue;
+                    
+                    if ([fn hasSuffix:@"_jp2.zip"]) {
+                        [jp2Files addObject:f];
+                    } else if ([fn hasSuffix:@".pdf"] && ![fn hasSuffix:@"_text.pdf"]) {
+                        [pdfFiles addObject:fn];
+                    }
+                }
+            }
+            
+            NSMutableArray<Chapter *> *chapters = [NSMutableArray array];
+            
+            if (jp2Files.count > 1) {
+                // Caso A: Múltiples tomos/números con archivos procesados independientes (ej: Batman 001..050)
+                [jp2Files sortUsingComparator:^NSComparisonResult(NSDictionary *d1, NSDictionary *d2) {
+                    return [d1[@"name"] compare:d2[@"name"]];
+                }];
+                
+                for (NSInteger i = 0; i < jp2Files.count; i++) {
+                    NSDictionary *f = jp2Files[i];
+                    NSString *fn = f[@"name"];
+                    NSString *baseName = [fn stringByReplacingOccurrencesOfString:@"_jp2.zip" withString:@""];
+                    NSInteger count = [f[@"filecount"] integerValue];
+                    if (count <= 0) count = 35;
+                    
+                    Chapter *ch = [[Chapter alloc] init];
+                    ch.chapterId = [NSString stringWithFormat:@"ia__%@__sub__%@__%ld", ident, [baseName stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]], (long)count];
+                    ch.chapterNumber = [NSString stringWithFormat:@"%ld", (long)(i + 1)];
+                    ch.title = baseName;
+                    ch.language = @"en";
+                    ch.pagesCount = count;
+                    [chapters addObject:ch];
+                }
+            } else if (pdfFiles.count > 1) {
+                // Caso B: Múltiples PDFs sin _jp2.zip individuales
+                [pdfFiles sortUsingSelector:@selector(compare:)];
+                for (NSInteger i = 0; i < pdfFiles.count; i++) {
+                    NSString *pdf = pdfFiles[i];
+                    NSString *baseName = [pdf stringByReplacingOccurrencesOfString:@".pdf" withString:@""];
+                    Chapter *ch = [[Chapter alloc] init];
+                    ch.chapterId = [NSString stringWithFormat:@"ia__%@__sub__%@__35", ident, [baseName stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]];
+                    ch.chapterNumber = [NSString stringWithFormat:@"%ld", (long)(i + 1)];
+                    ch.title = baseName;
+                    ch.language = @"en";
+                    ch.pagesCount = 35;
+                    [chapters addObject:ch];
+                }
+            } else {
+                // Caso C: Libro o cómic individual (ej: Watchmen completo, The Killing Joke)
+                NSInteger totalPages = 0;
+                if (jp2Files.count == 1) {
+                    totalPages = [jp2Files[0][@"filecount"] integerValue];
+                }
+                if (totalPages <= 0) {
+                    totalPages = [json[@"metadata"][@"imagecount"] integerValue];
+                }
+                if (totalPages <= 0) {
+                    totalPages = 36;
+                }
+                
+                if (totalPages <= 64) {
+                    Chapter *ch = [[Chapter alloc] init];
+                    ch.chapterId = [NSString stringWithFormat:@"ia__%@__range__0__%ld", ident, (long)totalPages];
+                    ch.chapterNumber = @"1";
+                    ch.title = json[@"metadata"][@"title"] ?: @"Novela Gráfica Completa";
+                    ch.language = @"en";
+                    ch.pagesCount = totalPages;
+                    [chapters addObject:ch];
+                } else {
+                    NSInteger chunkSize = 34;
+                    NSInteger numChapters = (totalPages + chunkSize - 1) / chunkSize;
+                    for (NSInteger i = 0; i < numChapters; i++) {
+                        NSInteger start = i * chunkSize;
+                        NSInteger count = MIN(chunkSize, totalPages - start);
+                        Chapter *ch = [[Chapter alloc] init];
+                        ch.chapterId = [NSString stringWithFormat:@"ia__%@__range__%ld__%ld", ident, (long)start, (long)count];
+                        ch.chapterNumber = [NSString stringWithFormat:@"%ld", (long)(i + 1)];
+                        ch.title = [NSString stringWithFormat:@"Issue #%ld (Páginas %ld-%ld)", (long)(i + 1), (long)(start + 1), (long)(start + count)];
+                        ch.language = @"en";
+                        ch.pagesCount = count;
+                        [chapters addObject:ch];
+                    }
+                }
+            }
+            completion(chapters, nil);
+        }];
+        return;
+    }
+    
+    // 2. Mangas de MangaDex
     NSInteger limit = 100;
     NSInteger offset = page * limit;
     
@@ -203,6 +372,49 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 
 - (void)fetchPagesForChapterId:(NSString *)chapterId
                     completion:(void(^)(NSArray<NSString *> *pageURLs, NSError *error))completion {
+    // 1. Cómics Occidentales de Internet Archive
+    if ([chapterId hasPrefix:@"ia__"]) {
+        NSArray<NSString *> *parts = [chapterId componentsSeparatedByString:@"__"];
+        if (parts.count >= 5 && [parts[2] isEqualToString:@"range"]) {
+            NSString *ident = parts[1];
+            NSInteger start = [parts[3] integerValue];
+            NSInteger count = [parts[4] integerValue];
+            
+            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
+            for (NSInteger p = 0; p < count; p++) {
+                NSInteger actualPage = start + p;
+                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)actualPage];
+                [pageURLs addObject:pageURL];
+            }
+            completion(pageURLs, nil);
+            return;
+        } else if (parts.count >= 5 && [parts[2] isEqualToString:@"sub"]) {
+            NSString *ident = parts[1];
+            NSString *subPrefix = [parts[3] stringByRemovingPercentEncoding] ?: parts[3];
+            NSInteger count = [parts[4] integerValue];
+            if (count <= 0) count = 35;
+            
+            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
+            for (NSInteger p = 0; p < count; p++) {
+                NSString *encodedPrefix = [subPrefix stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLPathAllowedCharacterSet]];
+                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/%@/page/n%ld.jpg", ident, encodedPrefix, (long)p];
+                [pageURLs addObject:pageURL];
+            }
+            completion(pageURLs, nil);
+            return;
+        } else if (parts.count >= 2) {
+            NSString *ident = parts[1];
+            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
+            for (NSInteger p = 0; p < 35; p++) {
+                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)p];
+                [pageURLs addObject:pageURL];
+            }
+            completion(pageURLs, nil);
+            return;
+        }
+    }
+    
+    // 2. Mangas de MangaDex
     NSString *urlStr = [NSString stringWithFormat:@"%@/at-home/server/%@", [self effectiveBaseURL], chapterId];
     
     NSURL *url = [NSURL URLWithString:urlStr];

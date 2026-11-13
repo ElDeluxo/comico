@@ -8,3 +8,4 @@ void ComicoLog(NSString *format, ...);
 @interface DebugViewController : UIViewController
 
 @end
+
