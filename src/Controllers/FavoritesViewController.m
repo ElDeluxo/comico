@@ -18,6 +18,9 @@ static NSString *const kFavCellId = @"ComicGridCell";
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    self.edgesForExtendedLayout = UIRectEdgeNone;
+    self.extendedLayoutIncludesOpaqueBars = NO;
+    
     self.title = @"Favoritos";
     self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
     
@@ -80,10 +83,13 @@ static NSString *const kFavCellId = @"ComicGridCell";
 
 - (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)collectionViewLayout sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat totalWidth = collectionView.bounds.size.width - 24;
-    int columns = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) ? 4 : 2;
+    int columns = 2;
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        columns = (collectionView.bounds.size.width > 800) ? 4 : 3;
+    }
     CGFloat itemSpacing = 10 * (columns - 1);
     CGFloat width = floor((totalWidth - itemSpacing) / columns);
-    CGFloat height = floor(width * 1.48);
+    CGFloat height = floor(width * 1.50);
     return CGSizeMake(width, height);
 }
 

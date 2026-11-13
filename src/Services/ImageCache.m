@@ -1,7 +1,7 @@
 #import "ImageCache.h"
 #import <CommonCrypto/CommonDigest.h>
 
-@interface ImageCache () <NSURLSessionDelegate>
+@interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
 @property (nonatomic, strong) NSCache *memCache;
 @property (nonatomic, copy) NSString *diskCachePath;
 @property (nonatomic, strong) dispatch_queue_t ioQueue;
@@ -56,6 +56,17 @@
 #pragma mark - NSURLSessionDelegate (Aceptar certificados SSL modernos en iOS 9)
 
 - (void)URLSession:(NSURLSession *)session
+didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+ completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
+    } else {
+        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session
+              task:(NSURLSessionTask *)task
 didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
  completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
     if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {

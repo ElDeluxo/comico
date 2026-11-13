@@ -5,9 +5,10 @@
 
 @interface HomeViewController () <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UISearchBarDelegate>
 
-@property (nonatomic, strong) UICollectionView *collectionView;
+@property (nonatomic, strong) UIView *headerContainerView;
 @property (nonatomic, strong) UISearchBar *searchBar;
 @property (nonatomic, strong) UISegmentedControl *categoryControl;
+@property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) UIRefreshControl *refreshControl;
 @property (nonatomic, strong) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic, strong) UILabel *emptyLabel;
@@ -32,45 +33,64 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     self.title = @"Comico";
     self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
     
+    // Evita que los elementos queden ocultos debajo de la barra de navegación en iOS 9
+    self.edgesForExtendedLayout = UIRectEdgeNone;
+    self.extendedLayoutIncludesOpaqueBars = NO;
+    self.automaticallyAdjustsScrollViewInsets = NO;
+    
     self.comics = [NSMutableArray array];
     self.currentPage = 0;
     self.hasMore = YES;
     self.currentCategory = ComicCategoryAll;
     
-    [self setupSearchBar];
-    [self setupCategoryControl];
+    [self setupHeaderAndSearchBar];
     [self setupCollectionView];
     [self setupLoadingIndicator];
     
     [self loadComicsResetting:YES];
 }
 
-- (void)setupSearchBar {
-    self.searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
-    self.searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    self.searchBar.delegate = self;
-    self.searchBar.placeholder = @"Buscar cómics, manga, autores...";
-    self.searchBar.barStyle = UIBarStyleBlack;
-    self.searchBar.barTintColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.16 alpha:1.0];
-    self.searchBar.tintColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
-    [self.view addSubview:self.searchBar];
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    
+    CGFloat w = self.view.bounds.size.width;
+    CGFloat h = self.view.bounds.size.height;
+    
+    CGFloat headerH = 44 + 40;
+    self.headerContainerView.frame = CGRectMake(0, 0, w, headerH);
+    self.searchBar.frame = CGRectMake(0, 0, w, 44);
+    self.categoryControl.frame = CGRectMake(8, 48, w - 16, 30);
+    
+    self.collectionView.frame = CGRectMake(0, headerH, w, h - headerH);
+    self.emptyLabel.frame = CGRectMake(20, 100, w - 40, 80);
+    self.retryButton.center = CGPointMake(w / 2.0, 210);
+    self.loadingIndicator.center = CGPointMake(w / 2.0, (h - headerH) / 2.0 + headerH);
 }
 
-- (void)setupCategoryControl {
-    UIView *barView = [[UIView alloc] initWithFrame:CGRectMake(0, 44, self.view.bounds.size.width, 38)];
-    barView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    barView.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.14 alpha:1.0];
+- (void)setupHeaderAndSearchBar {
+    CGFloat w = self.view.bounds.size.width;
+    self.headerContainerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, w, 84)];
+    self.headerContainerView.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.15 alpha:1.0];
+    [self.view addSubview:self.headerContainerView];
     
+    // Search Bar
+    self.searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(0, 0, w, 44)];
+    self.searchBar.delegate = self;
+    self.searchBar.placeholder = @"Buscar cómics (occidentales, manga, etc.)...";
+    self.searchBar.barStyle = UIBarStyleBlack;
+    self.searchBar.barTintColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.15 alpha:1.0];
+    self.searchBar.tintColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
+    [self.headerContainerView addSubview:self.searchBar];
+    
+    // Category Tabs
     NSArray *items = @[@"Todos", @"Occidentales", @"Manhwa", @"Manga"];
     self.categoryControl = [[UISegmentedControl alloc] initWithItems:items];
-    self.categoryControl.frame = CGRectMake(8, 4, self.view.bounds.size.width - 16, 28);
-    self.categoryControl.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    self.categoryControl.frame = CGRectMake(8, 48, w - 16, 30);
     self.categoryControl.selectedSegmentIndex = 0;
     self.categoryControl.tintColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
+    [self.categoryControl setTitleTextAttributes:@{NSFontAttributeName: [UIFont boldSystemFontOfSize:12.0]} forState:UIControlStateNormal];
     [self.categoryControl addTarget:self action:@selector(categoryChanged:) forControlEvents:UIControlEventValueChanged];
-    [barView addSubview:self.categoryControl];
-    
-    [self.view addSubview:barView];
+    [self.headerContainerView addSubview:self.categoryControl];
 }
 
 - (void)setupCollectionView {
@@ -78,12 +98,11 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     layout.scrollDirection = UICollectionViewScrollDirectionVertical;
     layout.minimumInteritemSpacing = 10;
     layout.minimumLineSpacing = 14;
-    layout.sectionInset = UIEdgeInsetsMake(12, 12, 16, 12);
+    layout.sectionInset = UIEdgeInsetsMake(12, 12, 20, 12);
     
-    CGFloat topOffset = 44 + 38;
-    CGRect cvFrame = CGRectMake(0, topOffset, self.view.bounds.size.width, self.view.bounds.size.height - topOffset);
+    CGFloat headerH = 84;
+    CGRect cvFrame = CGRectMake(0, headerH, self.view.bounds.size.width, self.view.bounds.size.height - headerH);
     self.collectionView = [[UICollectionView alloc] initWithFrame:cvFrame collectionViewLayout:layout];
-    self.collectionView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.collectionView.backgroundColor = [UIColor clearColor];
     self.collectionView.dataSource = self;
     self.collectionView.delegate = self;
@@ -98,25 +117,22 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     [self.collectionView addSubview:self.refreshControl];
     
     // Empty / Error Label
-    self.emptyLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 130, self.view.bounds.size.width - 40, 70)];
-    self.emptyLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    self.emptyLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 100, self.view.bounds.size.width - 40, 80)];
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
-    self.emptyLabel.textColor = [UIColor colorWithWhite:0.7 alpha:1.0];
+    self.emptyLabel.textColor = [UIColor colorWithWhite:0.75 alpha:1.0];
     self.emptyLabel.font = [UIFont systemFontOfSize:14.0];
     self.emptyLabel.numberOfLines = 3;
-    self.emptyLabel.text = @"No se encontraron cómics.";
     self.emptyLabel.hidden = YES;
     [self.collectionView addSubview:self.emptyLabel];
     
     // Retry Button
     self.retryButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.retryButton.frame = CGRectMake((self.view.bounds.size.width - 140) / 2.0, 210, 140, 36);
-    self.retryButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+    self.retryButton.frame = CGRectMake((self.view.bounds.size.width - 150) / 2.0, 190, 150, 38);
     self.retryButton.layer.cornerRadius = 6.0;
     self.retryButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
     [self.retryButton setTitle:@"Reintentar" forState:UIControlStateNormal];
     [self.retryButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.retryButton.titleLabel.font = [UIFont boldSystemFontOfSize:13.0];
+    self.retryButton.titleLabel.font = [UIFont boldSystemFontOfSize:14.0];
     [self.retryButton addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventTouchUpInside];
     self.retryButton.hidden = YES;
     [self.collectionView addSubview:self.retryButton];
@@ -124,8 +140,6 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
 
 - (void)setupLoadingIndicator {
     self.loadingIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-    self.loadingIndicator.center = CGPointMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0);
-    self.loadingIndicator.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
     self.loadingIndicator.hidesWhenStopped = YES;
     [self.view addSubview:self.loadingIndicator];
 }
@@ -181,7 +195,7 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
         
         if (error) {
             if (reset && self.comics.count == 0) {
-                self.emptyLabel.text = [NSString stringWithFormat:@"No se pudieron cargar cómics.\n(%@)", error.localizedDescription ?: @"Error desconocido"];
+                self.emptyLabel.text = [NSString stringWithFormat:@"Error al conectar:\n%@\n\nToca para reintentar.", error.localizedDescription ?: @"Error de red"];
                 self.emptyLabel.hidden = NO;
                 self.retryButton.hidden = NO;
             }
@@ -235,7 +249,12 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
 
 - (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)collectionViewLayout sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat totalWidth = collectionView.bounds.size.width - 24;
-    int columns = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) ? 4 : 2;
+    
+    int columns = 2;
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        columns = (collectionView.bounds.size.width > 800) ? 4 : 3;
+    }
+    
     CGFloat itemSpacing = 10 * (columns - 1);
     CGFloat width = floor((totalWidth - itemSpacing) / columns);
     CGFloat height = floor(width * 1.50);

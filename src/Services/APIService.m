@@ -2,7 +2,7 @@
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
 
-@interface APIService () <NSURLSessionDelegate>
+@interface APIService () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
 @property (nonatomic, strong) NSURLSession *session;
 @end
 
@@ -28,14 +28,23 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
     return self;
 }
 
-#pragma mark - NSURLSessionDelegate (Permite certificados modernos en iOS 9)
+#pragma mark - NSURLSessionDelegate & TaskDelegate (Bypass de certificados SSL en iOS 9)
 
 - (void)URLSession:(NSURLSession *)session
 didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
  completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
     if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
-        // En iOS 9 los certificados modernos de Let's Encrypt / Cloudflare no están en el keychain del sistema.
-        // Aceptamos el certificado del servidor para permitir la conexión HTTPS segura sin errores -1202.
+        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
+    } else {
+        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session
+              task:(NSURLSessionTask *)task
+didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+ completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
         completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     } else {
         completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
