@@ -65,18 +65,19 @@ jobs:
           # 1. Force Info.plist to require iOS 9.0
           echo "Patching Info.plist MinimumOSVersion to 9.0..."
           plutil -replace MinimumOSVersion -string "9.0" "$APP_PATH/Info.plist"
+          plutil -p "$APP_PATH/Info.plist" | grep -i MinimumOSVersion || true
 
-          # 2. Patch Mach-O load command to LC_VERSION_MIN_IPHONEOS 9.0 using Apple's vtool
+          # 2. Patch Mach-O load command to 9.0 using vtool
           if which vtool >/dev/null 2>&1; then
             echo "Original Mach-O build info:"
             vtool -show-build "$APP_PATH/Comico" || true
 
-            echo "Setting version-min to ios 9.0..."
-            vtool -set-version-min ios 9.0 9.0 -output "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
-              mv "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
-              chmod 755 "$APP_PATH/Comico"
+            echo "Setting version to 9.0..."
+            (vtool -replace -set-build-version ios 9.0 9.0 -output "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
+             mv "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
+             chmod 755 "$APP_PATH/Comico") || true
 
-            echo "Patched Mach-O build info:"
+            echo "Updated Mach-O build info:"
             vtool -show-build "$APP_PATH/Comico" || true
           fi
 
