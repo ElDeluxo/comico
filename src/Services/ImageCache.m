@@ -1,4 +1,5 @@
 #import "ImageCache.h"
+#import "APIService.h"
 #import <CommonCrypto/CommonDigest.h>
 
 @interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
@@ -151,7 +152,8 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         }
         
         // 3. Network Fetch con User-Agent
-        NSURL *url = [NSURL URLWithString:urlString];
+        NSString *targetURL = [[APIService sharedService] proxiedImageURL:urlString];
+        NSURL *url = [NSURL URLWithString:targetURL];
         if (!url) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (completion) completion(nil);

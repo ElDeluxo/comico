@@ -13,6 +13,7 @@
 @property (nonatomic, strong) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic, strong) UILabel *emptyLabel;
 @property (nonatomic, strong) UIButton *retryButton;
+@property (nonatomic, strong) UIButton *serverConfigButton;
 
 @property (nonatomic, strong) NSMutableArray<Comic *> *comics;
 @property (nonatomic, assign) NSInteger currentPage;
@@ -32,6 +33,7 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     
     self.title = @"Comico";
     self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"⚙️ Servidor" style:UIBarButtonItemStylePlain target:self action:@selector(showServerSettings)];
     
     // Evita que los elementos queden ocultos debajo de la barra de navegación en iOS 9
     self.edgesForExtendedLayout = UIRectEdgeNone;
@@ -62,8 +64,9 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     self.categoryControl.frame = CGRectMake(8, 48, w - 16, 30);
     
     self.collectionView.frame = CGRectMake(0, headerH, w, h - headerH);
-    self.emptyLabel.frame = CGRectMake(20, 100, w - 40, 80);
-    self.retryButton.center = CGPointMake(w / 2.0, 210);
+    self.emptyLabel.frame = CGRectMake(20, 80, w - 40, 90);
+    self.retryButton.center = CGPointMake(w / 2.0, 195);
+    self.serverConfigButton.center = CGPointMake(w / 2.0, 245);
     self.loadingIndicator.center = CGPointMake(w / 2.0, (h - headerH) / 2.0 + headerH);
 }
 
@@ -127,7 +130,7 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     
     // Retry Button
     self.retryButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.retryButton.frame = CGRectMake((self.view.bounds.size.width - 150) / 2.0, 190, 150, 38);
+    self.retryButton.frame = CGRectMake((self.view.bounds.size.width - 150) / 2.0, 180, 150, 38);
     self.retryButton.layer.cornerRadius = 6.0;
     self.retryButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
     [self.retryButton setTitle:@"Reintentar" forState:UIControlStateNormal];
@@ -136,6 +139,18 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     [self.retryButton addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventTouchUpInside];
     self.retryButton.hidden = YES;
     [self.collectionView addSubview:self.retryButton];
+    
+    // Server Config Button (para iPad con iOS 9)
+    self.serverConfigButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.serverConfigButton.frame = CGRectMake((self.view.bounds.size.width - 230) / 2.0, 226, 230, 36);
+    self.serverConfigButton.layer.cornerRadius = 6.0;
+    self.serverConfigButton.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
+    [self.serverConfigButton setTitle:@"⚙️ Configurar Servidor / Proxy" forState:UIControlStateNormal];
+    [self.serverConfigButton setTitleColor:[UIColor colorWithRed:0.3 green:0.75 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
+    self.serverConfigButton.titleLabel.font = [UIFont systemFontOfSize:13.0];
+    [self.serverConfigButton addTarget:self action:@selector(showServerSettings) forControlEvents:UIControlEventTouchUpInside];
+    self.serverConfigButton.hidden = YES;
+    [self.collectionView addSubview:self.serverConfigButton];
 }
 
 - (void)setupLoadingIndicator {
@@ -172,6 +187,42 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     [self loadComicsResetting:YES];
 }
 
+- (void)showServerSettings {
+    NSString *current = [[APIService sharedService] customServerURL];
+    NSString *msg = @"Si tu iPad tiene errores de SSL / TLS en iOS 9, ejecuta 'iniciar_servidor.bat' en tu PC e introduce la IP de tu PC (ej: http://192.168.0.147:8080):";
+    
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Servidor / Proxy Comico"
+                                                                   message:msg
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    [alert addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
+        textField.placeholder = @"http://192.168.0.147:8080";
+        textField.text = current.length > 0 ? current : @"http://192.168.0.147:8080";
+        textField.keyboardType = UIKeyboardTypeURL;
+        textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        textField.autocorrectionType = UITextAutocorrectionTypeNo;
+    }];
+    
+    UIAlertAction *saveAction = [UIAlertAction actionWithTitle:@"Guardar y Conectar" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        UITextField *tf = alert.textFields.firstObject;
+        [[APIService sharedService] saveCustomServerURL:tf.text];
+        [self handleRefresh];
+    }];
+    
+    UIAlertAction *resetAction = [UIAlertAction actionWithTitle:@"Restablecer (Directo)" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
+        [[APIService sharedService] saveCustomServerURL:nil];
+        [self handleRefresh];
+    }];
+    
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:@"Cancelar" style:UIAlertActionStyleCancel handler:nil];
+    
+    [alert addAction:saveAction];
+    [alert addAction:resetAction];
+    [alert addAction:cancelAction];
+    
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
 #pragma mark - Data Loading
 
 - (void)loadComicsResetting:(BOOL)reset {
@@ -195,14 +246,16 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
         
         if (error) {
             if (reset && self.comics.count == 0) {
-                self.emptyLabel.text = [NSString stringWithFormat:@"Error al conectar:\n%@\n\nToca para reintentar.", error.localizedDescription ?: @"Error de red"];
+                self.emptyLabel.text = [NSString stringWithFormat:@"Error al conectar:\n%@\n\n¿Falla SSL? Inicia 'iniciar_servidor.bat' en tu PC y toca abajo.", error.localizedDescription ?: @"Error de red"];
                 self.emptyLabel.hidden = NO;
                 self.retryButton.hidden = NO;
+                self.serverConfigButton.hidden = NO;
             }
             return;
         }
         
         self.retryButton.hidden = YES;
+        self.serverConfigButton.hidden = YES;
         
         if (reset) {
             [self.comics removeAllObjects];

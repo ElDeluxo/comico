@@ -14,6 +14,11 @@ typedef NS_ENUM(NSInteger, ComicCategory) {
 
 + (instancetype)sharedService;
 
+@property (nonatomic, copy) NSString *customServerURL;
+- (NSString *)effectiveBaseURL;
+- (void)saveCustomServerURL:(NSString *)url;
+- (NSString *)proxiedImageURL:(NSString *)originalURL;
+
 - (void)fetchComicsForCategory:(ComicCategory)category
                           page:(NSInteger)page
                     completion:(void(^)(NSArray<Comic *> *comics, NSError *error))completion;

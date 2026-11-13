@@ -28,6 +28,43 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
     return self;
 }
 
+#pragma mark - Custom Proxy / Server URL
+
+- (NSString *)customServerURL {
+    return [[NSUserDefaults standardUserDefaults] stringForKey:@"comico_custom_server_url"] ?: @"";
+}
+
+- (void)saveCustomServerURL:(NSString *)url {
+    NSString *trimmed = [url stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (trimmed.length > 0) {
+        if ([trimmed hasSuffix:@"/"]) {
+            trimmed = [trimmed substringToIndex:trimmed.length - 1];
+        }
+        [[NSUserDefaults standardUserDefaults] setObject:trimmed forKey:@"comico_custom_server_url"];
+    } else {
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"comico_custom_server_url"];
+    }
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (NSString *)effectiveBaseURL {
+    NSString *custom = [self customServerURL];
+    if (custom.length > 0) {
+        return custom;
+    }
+    return kBaseURL;
+}
+
+- (NSString *)proxiedImageURL:(NSString *)originalURL {
+    if (!originalURL || originalURL.length == 0) return originalURL;
+    NSString *custom = [self customServerURL];
+    if (custom.length > 0 && [originalURL hasPrefix:@"https://"]) {
+        NSString *encoded = [originalURL stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+        return [NSString stringWithFormat:@"%@/image?url=%@", custom, encoded];
+    }
+    return originalURL;
+}
+
 #pragma mark - NSURLSessionDelegate & TaskDelegate (Bypass de certificados SSL en iOS 9)
 
 - (void)URLSession:(NSURLSession *)session
@@ -80,7 +117,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     }
     
     // Usamos corchetes percent-encoded (%5B y %5D) para compatibilidad total con el parser de URLs de iOS 9
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?limit=%ld&offset=%ld&order%%5BfollowedCount%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive%@", kBaseURL, (long)limit, (long)offset, langParam];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?limit=%ld&offset=%ld&order%%5BfollowedCount%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive%@", [self effectiveBaseURL], (long)limit, (long)offset, langParam];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -110,7 +147,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSInteger offset = page * limit;
     
     NSString *encodedQuery = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", kBaseURL, encodedQuery, (long)limit, (long)offset];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", [self effectiveBaseURL], encodedQuery, (long)limit, (long)offset];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -139,7 +176,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSInteger limit = 100;
     NSInteger offset = page * limit;
     
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage%%5B%%5D=es&translatedLanguage%%5B%%5D=es-la&translatedLanguage%%5B%%5D=en&order%%5Bchapter%%5D=asc", kBaseURL, comicId, (long)limit, (long)offset];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage%%5B%%5D=es&translatedLanguage%%5B%%5D=es-la&translatedLanguage%%5B%%5D=en&order%%5Bchapter%%5D=asc", [self effectiveBaseURL], comicId, (long)limit, (long)offset];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -164,7 +201,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 
 - (void)fetchPagesForChapterId:(NSString *)chapterId
                     completion:(void(^)(NSArray<NSString *> *pageURLs, NSError *error))completion {
-    NSString *urlStr = [NSString stringWithFormat:@"%@/at-home/server/%@", kBaseURL, chapterId];
+    NSString *urlStr = [NSString stringWithFormat:@"%@/at-home/server/%@", [self effectiveBaseURL], chapterId];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -194,7 +231,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         NSMutableArray<NSString *> *urls = [NSMutableArray array];
         for (NSString *fn in filenames) {
             NSString *pUrl = [NSString stringWithFormat:@"%@/%@/%@/%@", baseUrl, qualityFolder, hash, fn];
-            [urls addObject:pUrl];
+            [urls addObject:[self proxiedImageURL:pUrl]];
         }
         
         completion(urls, nil);
