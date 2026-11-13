@@ -13,3 +13,4 @@ if [ -z "$PYTHON_BIN" ]; then
 fi
 
 exec "$PYTHON_BIN" /Applications/MangaBox.app/comico_daemon.py
+
