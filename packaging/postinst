@@ -3,3 +3,4 @@ if which uicache >/dev/null 2>&1; then
     uicache -p /Applications/Comico.app || uicache
 fi
 exit 0
+
