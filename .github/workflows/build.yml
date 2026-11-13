@@ -7,20 +7,18 @@ on:
 
 jobs:
   build:
-    name: Build IPA & DEB (iOS)
+    name: Build IPA and DEB
     runs-on: macos-14
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Tools
-        run: |
-          brew install dpkg
+      - name: Install dpkg
+        run: brew install dpkg
 
-      - name: Check Xcode
-        run: |
-          xcodebuild -version
+      - name: Show Xcode Version
+        run: xcodebuild -version
 
       - name: Build Archive
         run: |
@@ -36,46 +34,27 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Package .IPA
+      - name: Package IPA
         run: |
-          mkdir -p build/ipa-build/Payload
-          cp -r build/Comico.xcarchive/Products/Applications/Comico.app build/ipa-build/Payload/
-          cd build/ipa-build
+          mkdir -p build/ipa-prep/Payload
+          cp -r build/Comico.xcarchive/Products/Applications/Comico.app build/ipa-prep/Payload/
+          cd build/ipa-prep
           zip -r ../Comico.ipa Payload
           cd ../..
           ls -lh build/Comico.ipa
 
-      - name: Package .DEB (for iOS 9 Jailbreak)
+      - name: Package DEB
         run: |
-          mkdir -p deb-package/Applications
-          cp -r build/Comico.xcarchive/Products/Applications/Comico.app deb-package/Applications/
-          
-          mkdir -p deb-package/DEBIAN
-          cat << 'EOF' > deb-package/DEBIAN/control
-Package: com.comico.reader
-Name: Comico
-Version: 1.0.0
-Architecture: iphoneos-arm
-Description: Comic and manga reader for iOS 9+ using MangaDex API
-Maintainer: Comico Team
-Author: Comico Team
-Section: Applications
-Depends: firmware (>= 9.0)
-EOF
-
-          cat << 'EOF' > deb-package/DEBIAN/postinst
-#!/bin/sh
-if which uicache >/dev/null 2>&1; then
-    uicache -p /Applications/Comico.app || uicache
-fi
-exit 0
-EOF
-          chmod 755 deb-package/DEBIAN/postinst
-
-          dpkg-deb --build --root-owner-group deb-package build/Comico.deb
+          mkdir -p deb-prep/Applications
+          cp -r build/Comico.xcarchive/Products/Applications/Comico.app deb-prep/Applications/
+          mkdir -p deb-prep/DEBIAN
+          cp packaging/control deb-prep/DEBIAN/control
+          cp packaging/postinst deb-prep/DEBIAN/postinst
+          chmod 755 deb-prep/DEBIAN/postinst
+          dpkg-deb --build --root-owner-group deb-prep build/Comico.deb
           ls -lh build/Comico.deb
 
-      - name: Upload IPA & DEB Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Comico-iOS-Packages

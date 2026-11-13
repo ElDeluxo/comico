@@ -1,0 +1,9 @@
+Package: com.comico.reader
+Name: Comico
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Comic and manga reader for iOS 9+ using MangaDex API
+Maintainer: Comico Team
+Author: Comico Team
+Section: Applications
+Depends: firmware (>= 9.0)
