@@ -1,5 +1,6 @@
 #import "ImageCache.h"
 #import "APIService.h"
+#import "TLSHTTPClient.h"
 #import <CommonCrypto/CommonDigest.h>
 
 @interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
@@ -164,23 +165,18 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
         [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
         
-        NSURLSessionDataTask *task = [self.session dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *res, NSError *err) {
+        [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *res, NSError *err) {
             if (d && !err) {
                 UIImage *downloaded = [UIImage imageWithData:d];
                 if (downloaded) {
                     [self.memCache setObject:downloaded forKey:urlString cost:d.length];
                     [d writeToFile:path atomically:YES];
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        if (completion) completion(downloaded);
-                    });
+                    if (completion) completion(downloaded);
                     return;
                 }
             }
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (completion) completion(nil);
-            });
+            if (completion) completion(nil);
         }];
-        [task resume];
     });
 }
 

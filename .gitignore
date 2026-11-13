@@ -26,3 +26,9 @@ ipa-build/
 # OS generated
 .DS_Store
 Thumbs.db
+
+# Vendor & Cache
+vendor/mbedtls/
+image_cache/
+inspect_*.py
+dump_*.py

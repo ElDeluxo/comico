@@ -13,16 +13,19 @@ Comico_FILES = \
     src/Services/FavoritesManager.m \
     src/Services/ImageCache.m \
     src/Services/APIService.m \
+    src/Services/TLSHTTPClient.m \
     src/Views/ComicGridCell.m \
     src/Views/ChapterCell.m \
     src/Controllers/HomeViewController.m \
     src/Controllers/ComicDetailViewController.m \
     src/Controllers/ReaderViewController.m \
     src/Controllers/FavoritesViewController.m \
-    src/Controllers/MainTabBarController.m
+    src/Controllers/MainTabBarController.m \
+    $(wildcard vendor/mbedtls/library/*.c)
 
 Comico_FRAMEWORKS = UIKit Foundation CoreGraphics QuartzCore
-Comico_CFLAGS = -fobjc-arc -O2 -Isrc -Isrc/Models -Isrc/Services -Isrc/Views -Isrc/Controllers
+Comico_CFLAGS = -O2 -Isrc -Isrc/Models -Isrc/Services -Isrc/Views -Isrc/Controllers -Ivendor/mbedtls/include -Ivendor/mbedtls/library -Wno-unused-function -Wno-deprecated-declarations -Wno-macro-redefined
+Comico_OBJCFLAGS = -fobjc-arc
 Comico_CODESIGN_FLAGS = -Sentitlements.xml
 
 include $(THEOS_MAKE_PATH)/application.mk

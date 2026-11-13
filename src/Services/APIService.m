@@ -1,4 +1,5 @@
 #import "APIService.h"
+#import "TLSHTTPClient.h"
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
 
@@ -251,37 +252,27 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
     [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
     
-    NSURLSessionDataTask *task = [self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *res, NSError *netError) {
+    [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *data, NSHTTPURLResponse *httpRes, NSError *netError) {
         if (netError) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(nil, netError);
-            });
+            completion(nil, netError);
             return;
         }
         
-        NSHTTPURLResponse *httpRes = (NSHTTPURLResponse *)res;
-        if ([httpRes isKindOfClass:[NSHTTPURLResponse class]] && (httpRes.statusCode < 200 || httpRes.statusCode >= 300)) {
+        if (httpRes && (httpRes.statusCode < 200 || httpRes.statusCode >= 300)) {
             NSError *err = [NSError errorWithDomain:@"com.comico" code:httpRes.statusCode userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error HTTP %ld al conectar con MangaDex", (long)httpRes.statusCode]}];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(nil, err);
-            });
+            completion(nil, err);
             return;
         }
         
         NSError *jsonError = nil;
         NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
         if (jsonError || ![json isKindOfClass:[NSDictionary class]]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completion(nil, jsonError ?: [NSError errorWithDomain:@"com.comico" code:-101 userInfo:@{NSLocalizedDescriptionKey: @"Error al procesar JSON"}]);
-            });
+            completion(nil, jsonError ?: [NSError errorWithDomain:@"com.comico" code:-101 userInfo:@{NSLocalizedDescriptionKey: @"Error al procesar JSON"}]);
             return;
         }
         
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completion(json, nil);
-        });
+        completion(json, nil);
     }];
-    [task resume];
 }
 
 @end

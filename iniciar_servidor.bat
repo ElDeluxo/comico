@@ -10,3 +10,4 @@ if %ERRORLEVEL% NEQ 0 (
     py "%~dp0comico_server.py"
 )
 pause
+

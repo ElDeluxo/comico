@@ -246,7 +246,7 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
         
         if (error) {
             if (reset && self.comics.count == 0) {
-                self.emptyLabel.text = [NSString stringWithFormat:@"Error al conectar:\n%@\n\n¿Falla SSL? Inicia 'iniciar_servidor.bat' en tu PC y toca abajo.", error.localizedDescription ?: @"Error de red"];
+                self.emptyLabel.text = [NSString stringWithFormat:@"Error al conectar:\n%@\n\nToca para reintentar o configura un servidor opcional abajo.", error.localizedDescription ?: @"Error de red"];
                 self.emptyLabel.hidden = NO;
                 self.retryButton.hidden = NO;
                 self.serverConfigButton.hidden = NO;

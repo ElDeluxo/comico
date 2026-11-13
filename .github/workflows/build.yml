@@ -49,6 +49,15 @@ jobs:
           echo "Verifying clang..."
           ~/theos/toolchain/linux/iphone/bin/clang --version
 
+      - name: Setup mbedTLS 3.6 (TLS 1.3 Engine)
+        run: |
+          if [ ! -d "vendor/mbedtls/library" ]; then
+            echo "Cloning mbedTLS v3.6.0..."
+            git clone --depth 1 --branch v3.6.0 https://github.com/Mbed-TLS/mbedtls.git vendor/mbedtls
+          fi
+          echo "mbedTLS source ready:"
+          ls -d vendor/mbedtls/include vendor/mbedtls/library
+
       - name: Build Comico (armv7 + arm64)
         run: |
           chmod 755 layout/DEBIAN/postinst layout/DEBIAN/postrm || true
@@ -106,6 +115,7 @@ jobs:
           
           echo "Verifying IPA contents for Sideloadly:"
           unzip -l Comico_Universal_iOS9.ipa | grep "Payload/Comico.app/Info.plist"
+          unzip -l Comico_Universal_iOS9.ipa | grep "Payload/Comico.app/cacert.pem"
           ls -lh Comico_Universal_iOS9.ipa
 
       - name: Package DEB
