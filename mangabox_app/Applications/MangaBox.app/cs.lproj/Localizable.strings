@@ -1,0 +1,17 @@
+"APP_NAME" = "Mangie";
+"LIBRARY" = "Knihovna";
+"CHAPTERS" = "Kapitoly";
+"SEARCH" = "Hledat";
+"FAVORITES" = "Oblíbené";
+"SEARCH_PLACEHOLDER" = "Hledat mangu, komiksy, autory...";
+"PAGE_INDICATOR" = "Strana %ld z %ld";
+"PREVIOUS_PAGE" = "Předchozí";
+"NEXT_PAGE" = "Další";
+"CHAPTER" = "Kapitola %ld";
+"AUTHOR" = "Autor";
+"GENRE" = "Žánr";
+"STATUS" = "Stav";
+"ONGOING" = "Vychází";
+"COMPLETED" = "Dokončeno";
+"ABOUT_HEADER" = "O aplikaci Mangie";
+"ABOUT_TEXT" = "Čtečka online mangy a webtoonů pro klasický iOS. Umožňuje čtení po jednotlivých stránkách bez nutnosti stahovat celé archivy. Podporuje gesta a přiblížení prsty.";

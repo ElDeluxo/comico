@@ -1,0 +1,17 @@
+"APP_NAME" = "Mangie";
+"LIBRARY" = "Library";
+"CHAPTERS" = "Chapters";
+"SEARCH" = "Search";
+"FAVORITES" = "Favorites";
+"SEARCH_PLACEHOLDER" = "Search manga, webtoons, authors...";
+"PAGE_INDICATOR" = "Page %ld of %ld";
+"PREVIOUS_PAGE" = "Previous";
+"NEXT_PAGE" = "Next";
+"CHAPTER" = "Chapter %ld";
+"AUTHOR" = "Author";
+"GENRE" = "Genre";
+"STATUS" = "Status";
+"ONGOING" = "Ongoing";
+"COMPLETED" = "Completed";
+"ABOUT_HEADER" = "About Mangie";
+"ABOUT_TEXT" = "Streamlined online manga and webtoon reader for classic iOS. Read chapters page-by-page without downloading entire archives. Features pinch-to-zoom and gesture navigation.";

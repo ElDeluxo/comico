@@ -1,0 +1,6 @@
+#!/bin/sh
+[ "$1" = configure ] || exit 0
+chown -R root:wheel /Applications/MangaBox.app 2>/dev/null || true
+chmod -R 0755 /Applications/MangaBox.app 2>/dev/null || true
+su mobile -c /usr/bin/uicache 2>/dev/null || /usr/bin/uicache 2>/dev/null || true
+exit 0

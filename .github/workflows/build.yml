@@ -129,6 +129,11 @@ jobs:
           dpkg-deb --build --root-owner-group .theos/_ Comico_Universal_iOS9.deb
           ls -lh Comico_Universal_iOS9.deb
 
+      - name: Package Mangie for iPad
+        run: |
+          python3 package_mangie.py
+          ls -lh Mangie_iPad_iOS9.*
+
       - name: Upload Universal Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -136,26 +141,30 @@ jobs:
           path: |
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
+            Mangie_iPad_iOS9.ipa
+            Mangie_iPad_iOS9.deb
           retention-days: 30
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.2
-          name: "Comico v1.0.2 iOS 9.3 Universal (armv7 + arm64)"
+          tag_name: v1.3.0
+          name: "Mangie iPad Edition & Comico (iOS 9.3 Universal)"
           files: |
+            Mangie_iPad_iOS9.deb
+            Mangie_iPad_iOS9.ipa
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
           body: |
-            ### Comico v1.0.2 para iOS 9.3 (iPad / iPhone)
+            ### Mangie iPad Edition (v1.2.1) & Comico para iOS 9.3
             
-            - **Motor de Lectura de Páginas estilo Mangie (MangaBox):**
-              - Implementada la arquitectura de lectura y descarga de páginas de MangaBox (`MBReaderViewController`).
-              - Caché de páginas en RAM de bajo consumo con desalojo inteligente para evitar que iOS 9 cierre la app por falta de memoria (Jetsam OOM).
-              - Descarga prioritaria de páginas en formato optimizado (`data-saver` con fallback a `data`).
-              - Navegación táctil fluida (toque izquierdo 30% anterior, toque derecho 30% siguiente, centro alterna controles).
-              - Reemplazadas celdas de capítulos por `UITableViewCellStyleSubtitle` nativo 100% estable.
-            - **Arquitectura Universal (armv7 + arm64):** Compatible con iPad de 32-bit (iOS 9.3) y dispositivos de 64-bit.
-            - **mbedTLS 3.6 Nativo Integrado:** Soporte nativo para TLS 1.3 con bundle de certificados Mozilla CA (`cacert.pem`).
-            - **Sideloadly & Cydia/Filza Ready:** Bundle completo verificado con `Payload/Comico.app/Info.plist`.
+            #### 🌟 Mangie iPad Edition (Recomendado):
+            - **Adaptado específicamente para iPad (Pantalla Completa Nativa):** Se habilitó `UIDeviceFamily = [1, 2]` y rotación completa para iPad (`UISupportedInterfaceOrientations~ipad`).
+            - **Sin barras negras ni modo 1x/2x:** Aprovecha toda la pantalla del iPad (768x1024 / Retina 1536x2048).
+            - **Conexión TLS 1.3 nativa (mbedTLS):** Conecta a MangaDex sin errores de SSL ni certificados obsoletos.
+            - **Cero crasheos:** Utiliza la pila de red y visor nativos ultraestables de Sam Cejko.
+            
+            #### Archivos para instalar:
+            - **`Mangie_iPad_iOS9.deb`**: Instalar con Filza / Cydia (Recomendado, no expira).
+            - **`Mangie_iPad_iOS9.ipa`**: Instalar con Sideloadly en PC.
