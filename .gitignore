@@ -18,8 +18,11 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 
+# Theos
+.theos/
+packages/
+ipa-build/
+
 # OS generated
 .DS_Store
 Thumbs.db
-
-

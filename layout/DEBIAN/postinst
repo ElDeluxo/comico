@@ -1,0 +1,5 @@
+#!/bin/sh
+if which uicache >/dev/null 2>&1; then
+    uicache -p /Applications/Comico.app 2>/dev/null || uicache 2>/dev/null || true
+fi
+exit 0

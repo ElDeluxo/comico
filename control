@@ -1,0 +1,10 @@
+Package: com.comico.reader
+Name: Comico
+Depends: firmware (>= 9.0)
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Lector de cómics y manga online para iOS 9 (32-bit y 64-bit universal)
+Maintainer: ElDeluxo
+Author: ElDeluxo
+Section: Multimedia
+Tag: role::appstore
