@@ -2,35 +2,27 @@ name: Build iOS IPA and DEB
 
 on:
   push:
-    branches: [ main, master ]
-    tags:
-      - 'v*'
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     name: Build IPA & DEB (iOS)
-    runs-on: macos-13
+    runs-on: macos-14
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Xcode
+      - name: Install Tools
         run: |
-          echo "Available Xcode versions:"
-          ls -d /Applications/Xcode*
-          # Select Xcode 14 or latest available
-          if [ -d "/Applications/Xcode_14.3.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_14.3.1.app
-          elif [ -d "/Applications/Xcode_15.0.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.0.1.app
-          fi
+          brew install dpkg
+
+      - name: Check Xcode
+        run: |
           xcodebuild -version
 
-      - name: Build Archive (No Code Signing Required)
+      - name: Build Archive
         run: |
           mkdir -p build
           xcodebuild -project Comico/Comico.xcodeproj \
@@ -53,7 +45,7 @@ jobs:
           cd ../..
           ls -lh build/Comico.ipa
 
-      - name: Package .DEB (Jailbreak Cydia / Zebra / Sileo / Filza)
+      - name: Package .DEB (for iOS 9 Jailbreak)
         run: |
           mkdir -p deb-package/Applications
           cp -r build/Comico.xcarchive/Products/Applications/Comico.app deb-package/Applications/
@@ -80,7 +72,6 @@ exit 0
 EOF
           chmod 755 deb-package/DEBIAN/postinst
 
-          # Build .deb using dpkg-deb (available on macOS)
           dpkg-deb --build --root-owner-group deb-package build/Comico.deb
           ls -lh build/Comico.deb
 
@@ -92,16 +83,3 @@ EOF
             build/Comico.ipa
             build/Comico.deb
           retention-days: 30
-
-      - name: Create Release (if Tagged)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            build/Comico.ipa
-            build/Comico.deb
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-
-
