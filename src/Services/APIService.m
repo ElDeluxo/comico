@@ -192,3 +192,4 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
 }
 
 @end
+

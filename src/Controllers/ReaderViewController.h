@@ -6,3 +6,4 @@
 - (instancetype)initWithChapter:(Chapter *)chapter comicTitle:(NSString *)comicTitle;
 
 @end
+

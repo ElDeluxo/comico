@@ -12,3 +12,4 @@
 - (void)toggleFavorite:(Comic *)comic;
 
 @end
+

@@ -6,3 +6,4 @@
 - (instancetype)initWithComic:(Comic *)comic;
 
 @end
+

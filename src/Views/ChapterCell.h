@@ -6,3 +6,4 @@
 - (void)configureWithChapter:(Chapter *)chapter;
 
 @end
+

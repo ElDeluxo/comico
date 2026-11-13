@@ -9,3 +9,4 @@
 - (void)loadImageForURL:(NSString *)urlString completion:(void(^)(UIImage *image))completion;
 
 @end
+

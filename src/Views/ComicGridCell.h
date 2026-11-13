@@ -6,3 +6,4 @@
 - (void)configureWithComic:(Comic *)comic;
 
 @end
+

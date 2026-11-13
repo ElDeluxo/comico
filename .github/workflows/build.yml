@@ -22,7 +22,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update || true
-          sudo apt-get install -y fakeroot libtinfo5 libtinfo6 zlib1g-dev xz-utils || sudo apt-get install -y fakeroot libtinfo6 xz-utils || true
+          sudo apt-get install -y fakeroot libtinfo5 libtinfo6 zlib1g-dev xz-utils zip unzip || true
 
       - name: Setup Theos & iOS Cross Toolchain
         run: |
@@ -33,7 +33,7 @@ jobs:
           mkdir -p ~/theos/toolchain
           curl -sL https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz | tar -xJvf - -C ~/theos/toolchain/
           
-          echo "Installing iOS SDKs (including iPhoneOS9.3.sdk)..."
+          echo "Installing iOS SDKs (including iPhoneOS11.4.sdk)..."
           rm -rf ~/theos/sdks
           git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
           
@@ -65,26 +65,57 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Mach-O Architectures
+      - name: Verify Mach-O Architectures & Bundle
         run: |
-          APP_PATH=$(find .theos -name "Comico.app" -type d | head -n 1)
+          APP_PATH=".theos/_/Applications/Comico.app"
           echo "Inspecting binary at: $APP_PATH/Comico"
           file "$APP_PATH/Comico"
+          
+          if [ -x ~/theos/toolchain/linux/iphone/bin/arm64-apple-darwin-lipo ]; then
+            ~/theos/toolchain/linux/iphone/bin/arm64-apple-darwin-lipo -info "$APP_PATH/Comico" || true
+          fi
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find .theos -name "Comico.app" -type d | head -n 1)
+          APP_PATH=".theos/_/Applications/Comico.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Staged app not at expected path, searching..."
+            APP_PATH=$(find .theos -path "*/Applications/Comico.app" -type d | head -n 1)
+          fi
+          echo "Using final app bundle at: $APP_PATH"
+          
+          # Ensure Info.plist is present
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "Copying Info.plist into app bundle..."
+            cp Info.plist "$APP_PATH/Info.plist"
+          fi
+          
+          # Ensure icons and resources are present
+          cp -r Resources/* "$APP_PATH/" || true
+          
+          echo "App bundle contents:"
+          ls -la "$APP_PATH"
+          
+          # Create IPA Payload
           mkdir -p ipa-build/Payload
           cp -r "$APP_PATH" ipa-build/Payload/
           cd ipa-build
           zip -r ../Comico_Universal_iOS9.ipa Payload
           cd ..
+          
+          echo "Verifying IPA contents for Sideloadly:"
+          unzip -l Comico_Universal_iOS9.ipa | grep "Payload/Comico.app/Info.plist"
           ls -lh Comico_Universal_iOS9.ipa
 
       - name: Package DEB
         run: |
-          DEB_PATH=$(find packages -name "*.deb" | head -n 1)
-          cp "$DEB_PATH" Comico_Universal_iOS9.deb
+          APP_PATH=".theos/_/Applications/Comico.app"
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            cp Info.plist "$APP_PATH/Info.plist"
+          fi
+          cp -r Resources/* "$APP_PATH/" || true
+          
+          dpkg-deb --build --root-owner-group .theos/_ Comico_Universal_iOS9.deb
           ls -lh Comico_Universal_iOS9.deb
 
       - name: Upload Universal Artifacts

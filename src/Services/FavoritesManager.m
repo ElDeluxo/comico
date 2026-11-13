@@ -76,3 +76,4 @@ static NSString *const kFavoritesKey = @"comico_saved_favorites";
 }
 
 @end
+

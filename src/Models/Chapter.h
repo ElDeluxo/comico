@@ -11,3 +11,4 @@
 + (instancetype)chapterFromMangaDexJSON:(NSDictionary *)dict;
 
 @end
+

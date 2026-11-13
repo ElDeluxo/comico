@@ -15,3 +15,4 @@
 + (instancetype)fromDictionary:(NSDictionary *)dict;
 
 @end
+
