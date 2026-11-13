@@ -177,7 +177,8 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSInteger limit = 100;
     NSInteger offset = page * limit;
     
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage%%5B%%5D=es&translatedLanguage%%5B%%5D=es-la&translatedLanguage%%5B%%5D=en&order%%5Bchapter%%5D=asc", [self effectiveBaseURL], comicId, (long)limit, (long)offset];
+    // Al estilo MangaBox: includeEmptyPages=0 para filtrar capítulos vacíos
+    NSString *urlStr = [NSString stringWithFormat:@"%@/manga/%@/feed?limit=%ld&offset=%ld&translatedLanguage%%5B%%5D=es&translatedLanguage%%5B%%5D=es-la&translatedLanguage%%5B%%5D=en&order%%5Bchapter%%5D=asc&includeEmptyPages=0", [self effectiveBaseURL], comicId, (long)limit, (long)offset];
     
     NSURL *url = [NSURL URLWithString:urlStr];
     [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
@@ -220,19 +221,34 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         }
         
         NSString *hash = chapter[@"hash"];
-        NSArray *filenames = chapter[@"dataSaver"] ?: chapter[@"data"];
-        NSString *qualityFolder = (chapter[@"dataSaver"] != nil) ? @"data-saver" : @"data";
-        
-        if (!hash || ![filenames isKindOfClass:[NSArray class]]) {
-            NSError *err = [NSError errorWithDomain:@"com.comico" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"Capítulo sin páginas disponibles"}];
+        if (!hash || hash.length == 0) {
+            NSError *err = [NSError errorWithDomain:@"com.comico" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"Capítulo sin hash de imágenes"}];
             completion(nil, err);
             return;
         }
         
+        NSArray *dataSaver = chapter[@"dataSaver"];
+        NSArray *data = chapter[@"data"];
+        
         NSMutableArray<NSString *> *urls = [NSMutableArray array];
-        for (NSString *fn in filenames) {
-            NSString *pUrl = [NSString stringWithFormat:@"%@/%@/%@/%@", baseUrl, qualityFolder, hash, fn];
-            [urls addObject:[self proxiedImageURL:pUrl]];
+        
+        // Lógica idéntica a MangaBox (0x4e7f6): preferir data-saver comprimido para ahorrar RAM en iOS 9
+        if ([dataSaver isKindOfClass:[NSArray class]] && dataSaver.count > 0) {
+            for (NSString *fn in dataSaver) {
+                NSString *pUrl = [NSString stringWithFormat:@"%@/data-saver/%@/%@", baseUrl, hash, fn];
+                [urls addObject:[self proxiedImageURL:pUrl]];
+            }
+        } else if ([data isKindOfClass:[NSArray class]] && data.count > 0) {
+            for (NSString *fn in data) {
+                NSString *pUrl = [NSString stringWithFormat:@"%@/data/%@/%@", baseUrl, hash, fn];
+                [urls addObject:[self proxiedImageURL:pUrl]];
+            }
+        }
+        
+        if (urls.count == 0) {
+            NSError *err = [NSError errorWithDomain:@"com.comico" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"Capítulo sin páginas disponibles"}];
+            completion(nil, err);
+            return;
         }
         
         completion(urls, nil);

@@ -1,37 +1,47 @@
 #import "ReaderViewController.h"
 #import "APIService.h"
-#import "ImageCache.h"
+#import "TLSHTTPClient.h"
 
 @interface ReaderViewController () <UIScrollViewDelegate>
 
 @property (nonatomic, strong) Chapter *chapter;
 @property (nonatomic, copy) NSString *comicTitle;
-@property (nonatomic, strong) NSArray<NSString *> *pageURLs;
-@property (nonatomic, assign) NSInteger currentPageIndex;
+@property (nonatomic, assign) NSInteger chapterNumber;
 
 @property (nonatomic, strong) UIScrollView *scrollView;
 @property (nonatomic, strong) UIImageView *pageImageView;
-@property (nonatomic, strong) UIActivityIndicatorView *pageSpinner;
-@property (nonatomic, strong) UIView *bottomBar;
+@property (nonatomic, strong) UIActivityIndicatorView *spinner;
+
+@property (nonatomic, strong) NSMutableDictionary *pageCache;
+@property (nonatomic, strong) NSArray<NSString *> *pageURLs;
+@property (nonatomic, assign) int currentPage;
+@property (nonatomic, assign) int totalPages;
+
+@property (nonatomic, strong) UIView *controlsOverlay;
 @property (nonatomic, strong) UILabel *pageLabel;
-@property (nonatomic, strong) UISlider *pageSlider;
 @property (nonatomic, strong) UIButton *prevButton;
 @property (nonatomic, strong) UIButton *nextButton;
-
-@property (nonatomic, assign) BOOL controlsVisible;
+@property (nonatomic, assign) BOOL controlsHidden;
 
 @end
 
 @implementation ReaderViewController
 
 - (instancetype)initWithChapter:(Chapter *)chapter comicTitle:(NSString *)comicTitle {
+    return [self initWithChapter:chapter comicTitle:comicTitle chapterNumber:0];
+}
+
+- (instancetype)initWithChapter:(Chapter *)chapter comicTitle:(NSString *)comicTitle chapterNumber:(NSInteger)chapterNumber {
     self = [super init];
     if (self) {
         _chapter = chapter;
-        _comicTitle = comicTitle;
+        _comicTitle = comicTitle ?: @"Cómic";
+        _chapterNumber = chapterNumber;
+        _pageCache = [NSMutableDictionary dictionary];
         _pageURLs = @[];
-        _currentPageIndex = 0;
-        _controlsVisible = YES;
+        _currentPage = 0;
+        _totalPages = 0;
+        _controlsHidden = NO;
     }
     return self;
 }
@@ -39,17 +49,18 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.title = self.chapter.title ?: [NSString stringWithFormat:@"Capítulo %@", self.chapter.chapterNumber];
+    // Título al estilo MangaBox: "%@ - Ch. %ld"
+    if (self.chapter.title && self.chapter.title.length > 0) {
+        self.title = self.chapter.title;
+    } else if (self.chapter.chapterNumber && self.chapter.chapterNumber.length > 0) {
+        self.title = [NSString stringWithFormat:@"%@ - Cap. %@", self.comicTitle, self.chapter.chapterNumber];
+    } else {
+        self.title = self.comicTitle;
+    }
+    
     self.view.backgroundColor = [UIColor blackColor];
     
-    [self setupScrollView];
-    [self setupBottomBar];
-    [self setupGestures];
-    
-    [self loadPages];
-}
-
-- (void)setupScrollView {
+    // 1. ScrollView con soporte de zoom
     self.scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
     self.scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.scrollView.backgroundColor = [UIColor blackColor];
@@ -60,184 +71,225 @@
     self.scrollView.showsVerticalScrollIndicator = NO;
     [self.view addSubview:self.scrollView];
     
+    // 2. UIImageView de la página
     self.pageImageView = [[UIImageView alloc] initWithFrame:self.scrollView.bounds];
     self.pageImageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.pageImageView.contentMode = UIViewContentModeScaleAspectFit;
+    self.pageImageView.userInteractionEnabled = YES;
     [self.scrollView addSubview:self.pageImageView];
     
-    self.pageSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
-    self.pageSpinner.center = CGPointMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0);
-    self.pageSpinner.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
-    self.pageSpinner.hidesWhenStopped = YES;
-    [self.view addSubview:self.pageSpinner];
-}
-
-- (void)setupBottomBar {
-    CGFloat barH = 70.0;
-    CGFloat y = self.view.bounds.size.height - barH;
-    self.bottomBar = [[UIView alloc] initWithFrame:CGRectMake(0, y, self.view.bounds.size.width, barH)];
-    self.bottomBar.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
-    self.bottomBar.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
-    [self.view addSubview:self.bottomBar];
+    // 3. Indicador de carga
+    self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+    self.spinner.center = CGPointMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0);
+    self.spinner.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    self.spinner.hidesWhenStopped = YES;
+    [self.view addSubview:self.spinner];
     
-    // Page count label
-    self.pageLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 6, self.view.bounds.size.width - 20, 20)];
-    self.pageLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    self.pageLabel.textAlignment = NSTextAlignmentCenter;
-    self.pageLabel.textColor = [UIColor whiteColor];
-    self.pageLabel.font = [UIFont boldSystemFontOfSize:12.0];
-    self.pageLabel.text = @"Cargando páginas...";
-    [self.bottomBar addSubview:self.pageLabel];
-    
-    // Prev Button
-    self.prevButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.prevButton.frame = CGRectMake(10, 30, 44, 34);
-    [self.prevButton setTitle:@"◀" forState:UIControlStateNormal];
-    [self.prevButton setTitleColor:[UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0] forState:UIControlStateNormal];
-    [self.prevButton setTitleColor:[UIColor colorWithWhite:0.4 alpha:1.0] forState:UIControlStateDisabled];
-    [self.prevButton addTarget:self action:@selector(prevPageTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.bottomBar addSubview:self.prevButton];
-    
-    // Slider
-    CGFloat sliderW = self.view.bounds.size.width - 120;
-    self.pageSlider = [[UISlider alloc] initWithFrame:CGRectMake(60, 32, sliderW, 30)];
-    self.pageSlider.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    self.pageSlider.minimumValue = 0;
-    self.pageSlider.maximumValue = 1;
-    self.pageSlider.tintColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0];
-    [self.pageSlider addTarget:self action:@selector(sliderValueChanged:) forControlEvents:UIControlEventValueChanged];
-    [self.bottomBar addSubview:self.pageSlider];
-    
-    // Next Button
-    self.nextButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.nextButton.frame = CGRectMake(self.view.bounds.size.width - 54, 30, 44, 34);
-    self.nextButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-    [self.nextButton setTitle:@"▶" forState:UIControlStateNormal];
-    [self.nextButton setTitleColor:[UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0] forState:UIControlStateNormal];
-    [self.nextButton setTitleColor:[UIColor colorWithWhite:0.4 alpha:1.0] forState:UIControlStateDisabled];
-    [self.nextButton addTarget:self action:@selector(nextPageTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.bottomBar addSubview:self.nextButton];
-}
-
-- (void)setupGestures {
+    // 4. Gesto de toque táctil para navegación (izquierda: anterior, derecha: siguiente, centro: controles)
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
     [self.view addGestureRecognizer:tap];
     
-    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(nextPageTapped)];
-    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
-    [self.view addGestureRecognizer:swipeLeft];
+    // 5. Barra de controles inferior
+    [self setupControlsOverlay];
     
-    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(prevPageTapped)];
-    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
-    [self.view addGestureRecognizer:swipeRight];
+    // 6. Cargar páginas del capítulo
+    [self loadChapterPages];
 }
 
-- (void)handleTap:(UITapGestureRecognizer *)gesture {
-    CGPoint loc = [gesture locationInView:self.view];
-    CGFloat w = self.view.bounds.size.width;
+- (void)setupControlsOverlay {
+    CGFloat barH = 56.0;
+    CGFloat barY = self.view.bounds.size.height - barH;
     
-    if (loc.x < w * 0.28) {
-        // Tap Left 28% -> Prev page
-        [self prevPageTapped];
-    } else if (loc.x > w * 0.72) {
-        // Tap Right 28% -> Next page
-        [self nextPageTapped];
-    } else {
-        // Tap Center -> Toggle UI
-        [self toggleControls];
-    }
+    self.controlsOverlay = [[UIView alloc] initWithFrame:CGRectMake(0, barY, self.view.bounds.size.width, barH)];
+    self.controlsOverlay.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+    self.controlsOverlay.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.75];
+    [self.view addSubview:self.controlsOverlay];
+    
+    // Botón Anterior (estilo MangaBox PREVIOUS_PAGE)
+    self.prevButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.prevButton.frame = CGRectMake(10, 8, 110, 40);
+    [self.prevButton setTitle:@"◀ Anterior" forState:UIControlStateNormal];
+    [self.prevButton setTitleColor:[UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0] forState:UIControlStateNormal];
+    [self.prevButton setTitleColor:[UIColor colorWithWhite:0.35 alpha:1.0] forState:UIControlStateDisabled];
+    self.prevButton.titleLabel.font = [UIFont boldSystemFontOfSize:14.0];
+    [self.prevButton addTarget:self action:@selector(prevPage) forControlEvents:UIControlEventTouchUpInside];
+    [self.controlsOverlay addSubview:self.prevButton];
+    
+    // Botón Siguiente (estilo MangaBox NEXT_PAGE)
+    self.nextButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.nextButton.frame = CGRectMake(self.view.bounds.size.width - 120, 8, 110, 40);
+    self.nextButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+    [self.nextButton setTitle:@"Siguiente ▶" forState:UIControlStateNormal];
+    [self.nextButton setTitleColor:[UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0] forState:UIControlStateNormal];
+    [self.nextButton setTitleColor:[UIColor colorWithWhite:0.35 alpha:1.0] forState:UIControlStateDisabled];
+    self.nextButton.titleLabel.font = [UIFont boldSystemFontOfSize:14.0];
+    [self.nextButton addTarget:self action:@selector(nextPage) forControlEvents:UIControlEventTouchUpInside];
+    [self.controlsOverlay addSubview:self.nextButton];
+    
+    // Etiqueta indicador de páginas central (estilo MangaBox PAGE_INDICATOR: "1 / 24")
+    CGFloat labelX = 120.0;
+    CGFloat labelW = self.view.bounds.size.width - 240.0;
+    self.pageLabel = [[UILabel alloc] initWithFrame:CGRectMake(labelX, 8, labelW, 40)];
+    self.pageLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    self.pageLabel.textAlignment = NSTextAlignmentCenter;
+    self.pageLabel.textColor = [UIColor whiteColor];
+    self.pageLabel.font = [UIFont boldSystemFontOfSize:15.0];
+    self.pageLabel.text = @"Cargando...";
+    [self.controlsOverlay addSubview:self.pageLabel];
 }
 
-- (void)toggleControls {
-    self.controlsVisible = !self.controlsVisible;
-    [UIView animateWithDuration:0.25 animations:^{
-        self.bottomBar.alpha = self.controlsVisible ? 1.0 : 0.0;
-        self.navigationController.navigationBar.alpha = self.controlsVisible ? 1.0 : 0.0;
-    }];
-}
+#pragma mark - Page Loading & Rendering (MangaBox Architecture)
 
-#pragma mark - Page Loading
-
-- (void)loadPages {
-    [self.pageSpinner startAnimating];
+- (void)loadChapterPages {
+    [self.spinner startAnimating];
     self.pageImageView.image = nil;
+    self.pageLabel.text = @"Cargando páginas...";
     
     [[APIService sharedService] fetchPagesForChapterId:self.chapter.chapterId completion:^(NSArray<NSString *> *urls, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.pageSpinner stopAnimating];
-            if (error || urls.count == 0) {
-                self.pageLabel.text = @"Error al cargar páginas.";
+            [self.spinner stopAnimating];
+            if (error || !urls || urls.count == 0) {
+                self.pageLabel.text = @"Error al cargar páginas";
                 return;
             }
             
             self.pageURLs = urls;
-            self.currentPageIndex = 0;
-            self.pageSlider.maximumValue = MAX(0, (NSInteger)urls.count - 1);
-            self.pageSlider.value = 0;
+            self.totalPages = (int)urls.count;
+            self.currentPage = 0;
             
-            [self displayCurrentPage];
+            [self renderCurrentPage];
         });
     }];
 }
 
-- (void)displayCurrentPage {
-    if (self.pageURLs.count == 0) return;
+- (void)renderCurrentPage {
+    if (self.totalPages > 0) {
+        self.pageLabel.text = [NSString stringWithFormat:@"%d / %d", self.currentPage + 1, self.totalPages];
+    } else {
+        self.pageLabel.text = @"";
+    }
+    
+    self.prevButton.enabled = (self.currentPage > 0);
+    self.nextButton.enabled = (self.currentPage < self.totalPages - 1);
     
     [self.scrollView setZoomScale:1.0 animated:NO];
     
-    self.prevButton.enabled = (self.currentPageIndex > 0);
-    self.nextButton.enabled = (self.currentPageIndex < self.pageURLs.count - 1);
-    self.pageSlider.value = self.currentPageIndex;
-    self.pageLabel.text = [NSString stringWithFormat:@"Página %ld de %lu", (long)(self.currentPageIndex + 1), (unsigned long)self.pageURLs.count];
+    if (self.currentPage < 0 || self.currentPage >= (int)self.pageURLs.count) {
+        [self.spinner stopAnimating];
+        return;
+    }
     
-    NSString *currentURL = self.pageURLs[self.currentPageIndex];
-    UIImage *cached = [[ImageCache sharedCache] imageForURL:currentURL];
-    if (cached) {
-        self.pageImageView.image = cached;
-        [self.pageSpinner stopAnimating];
-    } else {
-        self.pageImageView.image = nil;
-        [self.pageSpinner startAnimating];
-        
-        [[ImageCache sharedCache] loadImageForURL:currentURL completion:^(UIImage *img) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (self.currentPageIndex >= 0 && self.currentPageIndex < self.pageURLs.count && [self.pageURLs[self.currentPageIndex] isEqualToString:currentURL]) {
-                    [self.pageSpinner stopAnimating];
-                    self.pageImageView.image = img;
+    // 1. Comprobar caché en memoria al estilo MangaBox (_pageCache)
+    UIImage *cachedImg = self.pageCache[@(self.currentPage)];
+    if (cachedImg) {
+        [self.spinner stopAnimating];
+        self.pageImageView.image = cachedImg;
+        [self prefetchSurroundingPages];
+        return;
+    }
+    
+    // 2. Si no está en caché, mostrar spinner y descargar con TLSHTTPClient
+    self.pageImageView.image = nil;
+    [self.spinner startAnimating];
+    
+    int requestedIndex = self.currentPage;
+    NSString *urlString = self.pageURLs[requestedIndex];
+    NSURL *url = [NSURL URLWithString:urlString];
+    if (!url) {
+        [self.spinner stopAnimating];
+        return;
+    }
+    
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+    [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
+    [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+    
+    [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!error && data.length > 0) {
+                UIImage *img = [UIImage imageWithData:data];
+                if (img) {
+                    self.pageCache[@(requestedIndex)] = img;
+                    if (self.currentPage == requestedIndex) {
+                        self.pageImageView.image = img;
+                        [self.spinner stopAnimating];
+                    }
                 }
-            });
-        }];
+            } else {
+                if (self.currentPage == requestedIndex) {
+                    [self.spinner stopAnimating];
+                }
+            }
+            [self prefetchSurroundingPages];
+        });
+    }];
+}
+
+- (void)prefetchSurroundingPages {
+    // Precargar página siguiente en segundo plano
+    int nextIdx = self.currentPage + 1;
+    if (nextIdx < self.totalPages && !self.pageCache[@(nextIdx)]) {
+        NSString *nextUrlStr = self.pageURLs[nextIdx];
+        NSURL *nextUrl = [NSURL URLWithString:nextUrlStr];
+        if (nextUrl) {
+            NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:nextUrl];
+            [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
+            [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+            [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *r, NSError *e) {
+                if (!e && d.length > 0) {
+                    UIImage *img = [UIImage imageWithData:d];
+                    if (img) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            self.pageCache[@(nextIdx)] = img;
+                        });
+                    }
+                }
+            }];
+        }
     }
     
-    // Preload next page
-    if (self.currentPageIndex + 1 < self.pageURLs.count) {
-        [[ImageCache sharedCache] loadImageForURL:self.pageURLs[self.currentPageIndex + 1] completion:nil];
-    }
-    // Preload previous page
-    if (self.currentPageIndex > 0) {
-        [[ImageCache sharedCache] loadImageForURL:self.pageURLs[self.currentPageIndex - 1] completion:nil];
-    }
-}
-
-- (void)prevPageTapped {
-    if (self.currentPageIndex > 0) {
-        self.currentPageIndex--;
-        [self displayCurrentPage];
+    // Limpiar páginas lejanas de la caché de RAM para evitar que iOS 9 mate el proceso por memoria (OOM Jetsam)
+    for (NSNumber *key in [self.pageCache allKeys]) {
+        int idx = [key intValue];
+        if (abs(idx - self.currentPage) > 3) {
+            [self.pageCache removeObjectForKey:key];
+        }
     }
 }
 
-- (void)nextPageTapped {
-    if (self.currentPageIndex < self.pageURLs.count - 1) {
-        self.currentPageIndex++;
-        [self displayCurrentPage];
+#pragma mark - Navigation Actions
+
+- (void)prevPage {
+    if (self.currentPage > 0) {
+        self.currentPage--;
+        [self renderCurrentPage];
     }
 }
 
-- (void)sliderValueChanged:(UISlider *)slider {
-    NSInteger target = (NSInteger)roundf(slider.value);
-    if (target != self.currentPageIndex && target < self.pageURLs.count) {
-        self.currentPageIndex = target;
-        [self displayCurrentPage];
+- (void)nextPage {
+    if (self.currentPage < self.totalPages - 1) {
+        self.currentPage++;
+        [self renderCurrentPage];
+    }
+}
+
+- (void)handleTap:(UITapGestureRecognizer *)tap {
+    CGPoint loc = [tap locationInView:self.view];
+    CGFloat w = self.view.bounds.size.width;
+    
+    if (loc.x < w * 0.3) {
+        // Toque en el tercio izquierdo: Página anterior
+        [self prevPage];
+    } else if (loc.x > w * 0.7) {
+        // Toque en el tercio derecho: Página siguiente
+        [self nextPage];
+    } else {
+        // Toque en el centro: Alternar barra de controles y navegación
+        self.controlsHidden = !self.controlsHidden;
+        [UIView animateWithDuration:0.25 animations:^{
+            self.controlsOverlay.alpha = self.controlsHidden ? 0.0 : 1.0;
+            self.navigationController.navigationBar.alpha = self.controlsHidden ? 0.0 : 1.0;
+        }];
     }
 }
 
@@ -248,4 +300,3 @@
 }
 
 @end
-

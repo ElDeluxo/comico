@@ -1,5 +1,4 @@
 #import "ComicDetailViewController.h"
-#import "ChapterCell.h"
 #import "ReaderViewController.h"
 #import "APIService.h"
 #import "ImageCache.h"
@@ -55,7 +54,6 @@ static NSString *const kChapterCellId = @"ChapterCell";
     self.tableView.delegate = self;
     self.tableView.rowHeight = 60;
     
-    [self.tableView registerClass:[ChapterCell class] forCellReuseIdentifier:kChapterCellId];
     [self.view addSubview:self.tableView];
     
     self.refreshControl = [[UIRefreshControl alloc] init];
@@ -205,9 +203,32 @@ static NSString *const kChapterCellId = @"ChapterCell";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    ChapterCell *cell = [tableView dequeueReusableCellWithIdentifier:kChapterCellId forIndexPath:indexPath];
+    static NSString *cellId = @"ChapterCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
+        cell.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.16 alpha:1.0];
+        cell.textLabel.textColor = [UIColor whiteColor];
+        cell.textLabel.font = [UIFont boldSystemFontOfSize:14.5];
+        cell.detailTextLabel.textColor = [UIColor colorWithWhite:0.6 alpha:1.0];
+        cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        
+        UIView *selBg = [[UIView alloc] init];
+        selBg.backgroundColor = [UIColor colorWithRed:0.22 green:0.22 blue:0.28 alpha:1.0];
+        cell.selectedBackgroundView = selBg;
+    }
+    
     if (indexPath.row < self.chapters.count) {
-        [cell configureWithChapter:self.chapters[indexPath.row]];
+        Chapter *ch = self.chapters[indexPath.row];
+        cell.textLabel.text = ch.title;
+        
+        NSString *lang = [ch.language uppercaseString] ?: @"ES";
+        if (ch.pagesCount > 0) {
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"[%@] Capítulo %@ • %ld páginas", lang, ch.chapterNumber ?: @"-", (long)ch.pagesCount];
+        } else {
+            cell.detailTextLabel.text = [NSString stringWithFormat:@"[%@] Capítulo %@", lang, ch.chapterNumber ?: @"-"];
+        }
     }
     return cell;
 }
@@ -216,7 +237,9 @@ static NSString *const kChapterCellId = @"ChapterCell";
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.row < self.chapters.count) {
         Chapter *ch = self.chapters[indexPath.row];
-        ReaderViewController *readerVC = [[ReaderViewController alloc] initWithChapter:ch comicTitle:self.comic.title];
+        ReaderViewController *readerVC = [[ReaderViewController alloc] initWithChapter:ch
+                                                                            comicTitle:self.comic.title
+                                                                         chapterNumber:indexPath.row + 1];
         [self.navigationController pushViewController:readerVC animated:YES];
     }
 }
