@@ -17,27 +17,33 @@ jobs:
       - name: Install dpkg
         run: brew install dpkg
 
-      - name: Show Xcode Version
-        run: xcodebuild -version
+      - name: Environment Info
+        run: |
+          xcodebuild -version
+          echo "Available Xcode versions:"
+          ls -d /Applications/Xcode* || true
 
-      - name: Build Archive
+      - name: Build Comico.app
         run: |
           mkdir -p build
+          set -o pipefail
           xcodebuild -project Comico/Comico.xcodeproj \
                      -scheme Comico \
                      -configuration Release \
                      -destination 'generic/platform=iOS' \
-                     -archivePath build/Comico.xcarchive \
-                     archive \
+                     -derivedDataPath build/DerivedData \
+                     build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGN_IDENTITY="" \
-                     AD_HOC_CODE_SIGNING_ALLOWED=YES
+                     AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log || (echo "=== BUILD FAILED ===" && tail -n 50 build.log && exit 1)
 
       - name: Package IPA
         run: |
+          APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
+          echo "Found app at: $APP_PATH"
           mkdir -p build/ipa-prep/Payload
-          cp -r build/Comico.xcarchive/Products/Applications/Comico.app build/ipa-prep/Payload/
+          cp -r "$APP_PATH" build/ipa-prep/Payload/
           cd build/ipa-prep
           zip -r ../Comico.ipa Payload
           cd ../..
@@ -45,8 +51,9 @@ jobs:
 
       - name: Package DEB
         run: |
+          APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
           mkdir -p deb-prep/Applications
-          cp -r build/Comico.xcarchive/Products/Applications/Comico.app deb-prep/Applications/
+          cp -r "$APP_PATH" deb-prep/Applications/
           mkdir -p deb-prep/DEBIAN
           cp packaging/control deb-prep/DEBIAN/control
           cp packaging/postinst deb-prep/DEBIAN/postinst
