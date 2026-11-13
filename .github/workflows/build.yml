@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build IPA and DEB
@@ -39,10 +42,13 @@ jobs:
                      AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log; then
             echo "Build succeeded!"
           else
-            echo "## ❌ Build Error Log" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -i -E "error:|fatal error:" build.log | head -n 30 >> $GITHUB_STEP_SUMMARY || tail -n 40 build.log >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "Build failed. Uploading log to branch..."
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git checkout -b build-logs
+            git add -f build.log
+            git commit -m "build log"
+            git push origin build-logs --force || true
             exit 1
           fi
 
