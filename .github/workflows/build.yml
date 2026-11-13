@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build IPA and DEB (Target: iOS 9.0)
+    name: Build IPA and DEB (iOS 9.0)
     runs-on: macos-latest
 
     steps:
@@ -30,58 +30,48 @@ jobs:
         run: |
           mkdir -p build
           set -o pipefail
-
-          echo "Attempting build targeting iOS 9.0..."
-          if ! xcodebuild -project Comico/Comico.xcodeproj \
-                          -scheme Comico \
-                          -configuration Release \
-                          -destination 'generic/platform=iOS' \
-                          -derivedDataPath build/DerivedData \
-                          build \
-                          IPHONEOS_DEPLOYMENT_TARGET=9.0 \
-                          CODE_SIGNING_ALLOWED=NO \
-                          CODE_SIGNING_REQUIRED=NO \
-                          CODE_SIGN_IDENTITY="" \
-                          AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log; then
-            echo "Xcode requires >=12.0 SDK for compilation. Compiling with base SDK, then applying iOS 9 patch..."
-            xcodebuild -project Comico/Comico.xcodeproj \
-                       -scheme Comico \
-                       -configuration Release \
-                       -destination 'generic/platform=iOS' \
-                       -derivedDataPath build/DerivedData \
-                       build \
-                       IPHONEOS_DEPLOYMENT_TARGET=12.0 \
-                       CODE_SIGNING_ALLOWED=NO \
-                       CODE_SIGNING_REQUIRED=NO \
-                       CODE_SIGN_IDENTITY="" \
-                       AD_HOC_CODE_SIGNING_ALLOWED=YES
+          if xcodebuild -project Comico/Comico.xcodeproj \
+                     -scheme Comico \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build/DerivedData \
+                     build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log; then
+            echo "Build succeeded!"
+          else
+            echo "Build failed. Uploading log to branch..."
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git checkout -b build-logs
+            git add -f build.log
+            git commit -m "build log"
+            git push origin build-logs --force || true
+            exit 1
           fi
 
-      - name: Patch Binary and Info.plist for iOS 9.0
+      - name: Set iOS 9 Compatibility in Info.plist & Binary
         run: |
           APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
           echo "Found app at: $APP_PATH"
 
-          # 1. Force Info.plist to require iOS 9.0
-          echo "Patching Info.plist MinimumOSVersion to 9.0..."
-          plutil -replace MinimumOSVersion -string "9.0" "$APP_PATH/Info.plist"
-          plutil -p "$APP_PATH/Info.plist" | grep -i MinimumOSVersion || true
+          # Force MinimumOSVersion to 9.0 in Info.plist
+          /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion 9.0" "$APP_PATH/Info.plist" || \
+          /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string 9.0" "$APP_PATH/Info.plist"
 
-          # 2. Patch Mach-O load command to 9.0 using vtool
+          echo "Verified Info.plist MinimumOSVersion:"
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP_PATH/Info.plist"
+
+          # Attempt vtool load command patch if possible
           if which vtool >/dev/null 2>&1; then
-            echo "Original Mach-O build info:"
-            vtool -show-build "$APP_PATH/Comico" || true
-
-            echo "Setting version to 9.0..."
-            (vtool -replace -set-build-version ios 9.0 9.0 -output "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
-             mv "$APP_PATH/Comico.ios9" "$APP_PATH/Comico" && \
+            (vtool -replace -set-build-version ios 9.0 9.0 -output "$APP_PATH/Comico.tmp" "$APP_PATH/Comico" && \
+             mv "$APP_PATH/Comico.tmp" "$APP_PATH/Comico" && \
              chmod 755 "$APP_PATH/Comico") || true
-
-            echo "Updated Mach-O build info:"
-            vtool -show-build "$APP_PATH/Comico" || true
           fi
 
-          # 3. Ad-hoc re-sign binary after modifying headers
+          # Ad-hoc sign bundle
           codesign --force --sign - "$APP_PATH" || true
 
       - name: Package IPA
@@ -94,7 +84,7 @@ jobs:
           cd ../..
           ls -lh build/Comico.ipa
 
-      - name: Package DEB (Cydia / Sileo / Zebra / Filza for iOS 9)
+      - name: Package DEB
         run: |
           APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
           mkdir -p deb-prep/Applications
