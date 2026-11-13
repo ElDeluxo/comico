@@ -30,5 +30,8 @@ Thumbs.db
 # Vendor & Cache
 vendor/mbedtls/
 image_cache/
+comics/
+__pycache__/
+*.original
 inspect_*.py
 dump_*.py

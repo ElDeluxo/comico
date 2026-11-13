@@ -122,3 +122,4 @@ with open(deb_path, "wb") as deb:
     if len(data_gz) % 2 != 0: deb.write(b"\n")
 
 print(f"DEB created successfully: {deb_path}. Size:", os.path.getsize(deb_path), "bytes")
+
