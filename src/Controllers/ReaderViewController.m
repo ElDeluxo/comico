@@ -85,7 +85,7 @@
     self.pageLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.pageLabel.textAlignment = NSTextAlignmentCenter;
     self.pageLabel.textColor = [UIColor whiteColor];
-    self.pageLabel.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium];
+    self.pageLabel.font = [UIFont boldSystemFontOfSize:12.0];
     self.pageLabel.text = @"Cargando páginas...";
     [self.bottomBar addSubview:self.pageLabel];
     
@@ -163,18 +163,20 @@
     self.pageImageView.image = nil;
     
     [[APIService sharedService] fetchPagesForChapterId:self.chapter.chapterId completion:^(NSArray<NSString *> *urls, NSError *error) {
-        [self.pageSpinner stopAnimating];
-        if (error || urls.count == 0) {
-            self.pageLabel.text = @"Error al cargar páginas.";
-            return;
-        }
-        
-        self.pageURLs = urls;
-        self.currentPageIndex = 0;
-        self.pageSlider.maximumValue = urls.count - 1;
-        self.pageSlider.value = 0;
-        
-        [self displayCurrentPage];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.pageSpinner stopAnimating];
+            if (error || urls.count == 0) {
+                self.pageLabel.text = @"Error al cargar páginas.";
+                return;
+            }
+            
+            self.pageURLs = urls;
+            self.currentPageIndex = 0;
+            self.pageSlider.maximumValue = MAX(0, (NSInteger)urls.count - 1);
+            self.pageSlider.value = 0;
+            
+            [self displayCurrentPage];
+        });
     }];
 }
 
@@ -198,10 +200,12 @@
         [self.pageSpinner startAnimating];
         
         [[ImageCache sharedCache] loadImageForURL:currentURL completion:^(UIImage *img) {
-            if ([self.pageURLs[self.currentPageIndex] isEqualToString:currentURL]) {
-                [self.pageSpinner stopAnimating];
-                self.pageImageView.image = img;
-            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (self.currentPageIndex >= 0 && self.currentPageIndex < self.pageURLs.count && [self.pageURLs[self.currentPageIndex] isEqualToString:currentURL]) {
+                    [self.pageSpinner stopAnimating];
+                    self.pageImageView.image = img;
+                }
+            });
         }];
     }
     

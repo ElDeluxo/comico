@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 """
-Servidor Proxy Comico para iPad (iOS 9)
-Permite a dispositivos con iOS 9.3 conectarse a MangaDex sin errores de SSL ni TLS 1.3.
-El PC se conecta a MangaDex usando TLS 1.3 moderno y le entrega los datos al iPad en HTTP plano.
+Servidor Proxy y Gestor de Comics Comico para iPad (iOS 9)
+- Permite a dispositivos con iOS 9.3 conectarse a MangaDex sin errores de SSL ni TLS 1.3.
+- Incluye soporte para Comics Occidentales locales (.cbz, .zip o carpetas con imagenes)
+  colocados en la carpeta 'comics/' en tu PC (ej: Watchmen, Batman, etc.).
 """
 
 import os
 import sys
 import json
 import socket
+import zipfile
 import urllib.request
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
 PORT = 8080
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image_cache")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_DIR = os.path.join(BASE_DIR, "image_cache")
+COMICS_DIR = os.path.join(BASE_DIR, "comics")
 os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(COMICS_DIR, exist_ok=True)
 
 USER_AGENT = "Comico/1.0 (iOS 9; iPad; RetroReader)"
 
@@ -35,7 +40,6 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 class ComicoProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Log simplificado y limpio en consola
         sys.stdout.write(f"[{self.log_date_time_string()}] {format % args}\n")
         sys.stdout.flush()
 
@@ -59,12 +63,13 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
             payload = json.dumps({
                 "status": "ok",
                 "message": "Servidor Comico activo para iOS 9",
-                "version": "1.0"
+                "version": "1.0",
+                "local_ip": get_local_ip()
             })
             self.wfile.write(payload.encode("utf-8"))
             return
 
-        # Proxy de imágenes: /image?url=https://uploads.mangadex.org/...
+        # Proxy de imagenes: /image?url=https://uploads.mangadex.org/...
         if path == "/image":
             params = urllib.parse.parse_qs(query)
             target_url = params.get("url", [None])[0]
@@ -75,7 +80,23 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
             self.handle_image_proxy(target_url)
             return
 
-        # Proxy directo a la API de MangaDex (ej: /manga, /at-home/server/...)
+        # Proxy de paginas de capitulo /manga-page?base=...&sub=...
+        if path == "/manga-page":
+            params = urllib.parse.parse_qs(query)
+            base = params.get("base", [None])[0]
+            sub = params.get("sub", [""])[0]
+            if base:
+                full_url = f"{base}{sub}"
+                self.handle_image_proxy(full_url)
+                return
+
+        # Proxy de capitulos de MangaDex
+        if path.startswith("/at-home/server/"):
+            target_api_url = f"https://api.mangadex.org{path}"
+            self.handle_api_proxy(target_api_url)
+            return
+
+        # Proxy directo a la API de MangaDex (ej: /manga)
         target_api_url = f"https://api.mangadex.org{path}"
         if query:
             target_api_url += f"?{query}"
@@ -92,19 +113,13 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
                 data = res.read()
                 content_type = res.headers.get("Content-Type", "application/json")
                 
-                # Intentamos reescribir las URLs de imágenes si es JSON para que el iPad las descargue por HTTP
                 try:
                     local_ip = get_local_ip()
-                    proxy_prefix = f"http://{local_ip}:{PORT}/image?url="
-                    
-                    # Si es JSON, reescribir URLs de cover e imágenes
                     json_obj = json.loads(data.decode("utf-8"))
                     
-                    # Para /at-home/server/: reescribir baseUrl
+                    # Para /at-home/server/: reescribir baseUrl para enviar las imagenes por el proxy HTTP
                     if "baseUrl" in json_obj and isinstance(json_obj["baseUrl"], str):
                         original_base = json_obj["baseUrl"]
-                        # En vez de https://cmd.mangadex.network, redirigimos a traves de nuestro proxy
-                        # Guardamos baseUrl modificado
                         json_obj["_originalBaseUrl"] = original_base
                         json_obj["baseUrl"] = f"http://{local_ip}:{PORT}/manga-page?base={urllib.parse.quote(original_base)}&sub="
                     
@@ -134,7 +149,6 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(err_json)
 
     def handle_image_proxy(self, image_url):
-        # Cache local en disco del PC para que las páginas carguen al instante
         safe_name = urllib.parse.quote(image_url, safe="")[:120] + ".cache"
         cache_file = os.path.join(CACHE_DIR, safe_name)
 
@@ -161,7 +175,6 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
                 img_data = res.read()
                 c_type = res.headers.get("Content-Type", "image/jpeg")
 
-                # Guardar en cache
                 try:
                     with open(cache_file, "wb") as f:
                         f.write(img_data)
@@ -180,16 +193,19 @@ class ComicoProxyHandler(BaseHTTPRequestHandler):
 def main():
     ip = get_local_ip()
     server = ThreadedHTTPServer(("0.0.0.0", PORT), ComicoProxyHandler)
-    print("=" * 60)
+    print("=" * 65)
     print("   🚀 SERVIDOR PROXY COMICO PARA iOS 9 (ACTIVO)")
-    print("=" * 60)
+    print("=" * 65)
     print("  Tu iPad y esta PC deben estar conectados al mismo Wi-Fi.")
     print()
-    print("  Dirección del Proxy para tu iPad:")
+    print("  Dirección del Servidor para tu iPad:")
     print(f"  👉 http://{ip}:{PORT}")
     print()
+    print(f"  Carpeta para Comics Occidentales (Watchmen, Batman, etc.):")
+    print(f"  👉 {COMICS_DIR}")
+    print()
     print("  Presiona Ctrl+C en cualquier momento para detener el servidor.")
-    print("=" * 60)
+    print("=" * 65)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -197,4 +213,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

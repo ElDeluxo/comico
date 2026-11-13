@@ -12,10 +12,12 @@
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
         self.backgroundColor = [UIColor colorWithRed:0.12 green:0.12 blue:0.16 alpha:1.0];
-        self.selectionStyle = UITableViewCellSelectionStyleGray;
+        
+        UIView *selectedBg = [[UIView alloc] init];
+        selectedBg.backgroundColor = [UIColor colorWithRed:0.22 green:0.22 blue:0.28 alpha:1.0];
+        self.selectedBackgroundView = selectedBg;
         
         _langBadge = [[UILabel alloc] init];
-        _langBadge.translatesAutoresizingMaskIntoConstraints = NO;
         _langBadge.backgroundColor = [UIColor colorWithRed:0.2 green:0.4 blue:0.8 alpha:1.0];
         _langBadge.textColor = [UIColor whiteColor];
         _langBadge.font = [UIFont boldSystemFontOfSize:11.0];
@@ -25,41 +27,48 @@
         [self.contentView addSubview:_langBadge];
         
         _titleLabel = [[UILabel alloc] init];
-        _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _titleLabel.textColor = [UIColor whiteColor];
-        _titleLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+        _titleLabel.font = [UIFont boldSystemFontOfSize:14.5];
         _titleLabel.numberOfLines = 1;
+        _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self.contentView addSubview:_titleLabel];
         
         _subLabel = [[UILabel alloc] init];
-        _subLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _subLabel.textColor = [UIColor colorWithWhite:0.6 alpha:1.0];
         _subLabel.font = [UIFont systemFontOfSize:12.0];
+        _subLabel.numberOfLines = 1;
         [self.contentView addSubview:_subLabel];
         
         self.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        
-        [NSLayoutConstraint activateConstraints:@[
-            [_langBadge.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:14],
-            [_langBadge.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
-            [_langBadge.widthAnchor constraintEqualToConstant:32],
-            [_langBadge.heightAnchor constraintEqualToConstant:20],
-            
-            [_titleLabel.leadingAnchor constraintEqualToAnchor:_langBadge.trailingAnchor constant:10],
-            [_titleLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-10],
-            [_titleLabel.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:10],
-            
-            [_subLabel.leadingAnchor constraintEqualToAnchor:_titleLabel.leadingAnchor],
-            [_subLabel.trailingAnchor constraintEqualToAnchor:_titleLabel.trailingAnchor],
-            [_subLabel.topAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor constant:3],
-            [_subLabel.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-10]
-        ]];
     }
     return self;
 }
 
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    
+    CGFloat contentW = self.contentView.bounds.size.width;
+    CGFloat contentH = self.contentView.bounds.size.height;
+    if (contentH <= 0) contentH = 60.0;
+    
+    // Badge de idioma a la izquierda centrado verticalmente
+    CGFloat badgeW = 34.0;
+    CGFloat badgeH = 20.0;
+    CGFloat badgeX = 14.0;
+    CGFloat badgeY = floorf((contentH - badgeH) / 2.0);
+    self.langBadge.frame = CGRectMake(badgeX, badgeY, badgeW, badgeH);
+    
+    // Título y subtítulo calculados manualmente sin AutoLayout
+    CGFloat textX = badgeX + badgeW + 10.0;
+    CGFloat textW = contentW - textX - 10.0;
+    if (textW < 50) textW = 50;
+    
+    self.titleLabel.frame = CGRectMake(textX, 10.0, textW, 20.0);
+    self.subLabel.frame = CGRectMake(textX, 32.0, textW, 16.0);
+}
+
 - (void)configureWithChapter:(Chapter *)chapter {
-    self.titleLabel.text = chapter.title;
+    self.titleLabel.text = chapter.title.length > 0 ? chapter.title : [NSString stringWithFormat:@"Capítulo %@", chapter.chapterNumber ?: @""];
     self.langBadge.text = [chapter.language uppercaseString] ?: @"ES";
     if ([chapter.language isEqualToString:@"es"] || [chapter.language isEqualToString:@"es-la"]) {
         self.langBadge.backgroundColor = [UIColor colorWithRed:0.85 green:0.35 blue:0.3 alpha:1.0];
@@ -68,11 +77,10 @@
     }
     
     if (chapter.pagesCount > 0) {
-        self.subLabel.text = [NSString stringWithFormat:@"Capítulo %@ • %ld páginas", chapter.chapterNumber, (long)chapter.pagesCount];
+        self.subLabel.text = [NSString stringWithFormat:@"Capítulo %@ • %ld páginas", chapter.chapterNumber ?: @"", (long)chapter.pagesCount];
     } else {
-        self.subLabel.text = [NSString stringWithFormat:@"Capítulo %@", chapter.chapterNumber];
+        self.subLabel.text = [NSString stringWithFormat:@"Capítulo %@", chapter.chapterNumber ?: @""];
     }
 }
 
 @end
-

@@ -131,6 +131,7 @@ static NSString *const kChapterCellId = @"ChapterCell";
     descView.textColor = [UIColor colorWithWhite:0.85 alpha:1.0];
     descView.font = [UIFont systemFontOfSize:12.0];
     descView.editable = NO;
+    descView.scrollEnabled = NO;
     descView.text = self.comic.comicDescription;
     [header addSubview:descView];
     
@@ -176,20 +177,24 @@ static NSString *const kChapterCellId = @"ChapterCell";
     self.noChaptersLabel.hidden = YES;
     
     [[APIService sharedService] fetchChaptersForComicId:self.comic.comicId page:0 completion:^(NSArray<Chapter *> *chapters, NSError *error) {
-        [self.spinner stopAnimating];
-        [self.refreshControl endRefreshing];
-        
-        if (error) {
-            self.noChaptersLabel.text = @"Error al cargar capítulos.";
-            self.noChaptersLabel.hidden = NO;
-            return;
-        }
-        
-        [self.chapters removeAllObjects];
-        [self.chapters addObjectsFromArray:chapters];
-        
-        self.noChaptersLabel.hidden = (self.chapters.count > 0);
-        [self.tableView reloadData];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.spinner stopAnimating];
+            [self.refreshControl endRefreshing];
+            
+            if (error) {
+                self.noChaptersLabel.text = @"Error al cargar capítulos.";
+                self.noChaptersLabel.hidden = NO;
+                return;
+            }
+            
+            [self.chapters removeAllObjects];
+            if (chapters && chapters.count > 0) {
+                [self.chapters addObjectsFromArray:chapters];
+            }
+            
+            self.noChaptersLabel.hidden = (self.chapters.count > 0);
+            [self.tableView reloadData];
+        });
     }];
 }
 
