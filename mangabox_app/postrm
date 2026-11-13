@@ -1,4 +1,5 @@
 #!/bin/sh
-[ "$1" = remove ] || exit 0
+launchctl unload /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
+rm -f /Library/LaunchDaemons/com.comico.daemon.plist 2>/dev/null || true
 su mobile -c /usr/bin/uicache 2>/dev/null || /usr/bin/uicache 2>/dev/null || true
 exit 0

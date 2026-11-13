@@ -1,9 +1,9 @@
 Package: com.samcejko.mangabox
-Name: Mangie iPad
-Version: 1.2.1
+Name: Mangie iPad (Native Edition)
+Version: 1.3.0
 Architecture: iphoneos-arm
-Description: Mangie manga reader adapted for iPad and iOS 9. Full screen native iPad interface, mbedTLS TLS 1.3 connectivity, and gesture reader.
+Description: Lector nativo de Manga y Comics para iPad en iOS 9. Pantalla completa nativa, demonio interno autónomo (127.0.0.1) para cómics occidentales y lectura offline.
 Maintainer: samcejko & Comico
 Author: samcejko
 Section: Multimedia
-Depends: firmware (>= 5.0)
+Depends: firmware (>= 5.0), python | python3

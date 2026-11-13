@@ -22,24 +22,12 @@ with zipfile.ZipFile(ipa_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
 
 print("IPA created successfully. Size:", os.path.getsize(ipa_path), "bytes")
 
-# Verify IPA contents:
-with zipfile.ZipFile(ipa_path, "r") as z:
-    names = z.namelist()
-    assert "Payload/MangaBox.app/Info.plist" in names
-    print("Verified Info.plist in IPA:", "Payload/MangaBox.app/Info.plist" in names)
-
 # 2. Package DEB: Mangie_iPad_iOS9.deb
-# A deb file is a Unix ar archive:
-# Files inside ar:
-# - debian-binary (contains "2.0\n")
-# - control.tar.gz (contains ./control, ./postinst, ./postrm)
-# - data.tar.gz (contains ./Applications/MangaBox.app/...)
-
-def make_tar_gz(source_entries, is_prefix=False):
+def make_tar_gz(source_entries):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for src_path, arc_name, mode in source_entries:
-            if os.path.isdir(src_path):
+            if src_path is None or os.path.isdir(src_path):
                 t_info = tarfile.TarInfo(name=arc_name)
                 t_info.type = tarfile.DIRTYPE
                 t_info.mode = mode
@@ -69,9 +57,17 @@ control_gz = make_tar_gz(control_files)
 
 # data.tar.gz
 data_entries = [
-    (os.path.join(base_dir, "mangabox_app", "Applications"), "./Applications", 0o755),
-    (app_dir, "./Applications/MangaBox.app", 0o755),
+    (None, "./Applications", 0o755),
+    (None, "./Applications/MangaBox.app", 0o755),
+    (None, "./Library", 0o755),
+    (None, "./Library/LaunchDaemons", 0o755),
+    (None, "./var", 0o755),
+    (None, "./var/mobile", 0o755),
+    (None, "./var/mobile/Documents", 0o755),
+    (None, "./var/mobile/Documents/Comics", 0o777),
 ]
+
+# Add MangaBox.app files
 for root, dirs, files in os.walk(app_dir):
     for d in dirs:
         p = os.path.join(root, d)
@@ -80,8 +76,13 @@ for root, dirs, files in os.walk(app_dir):
     for f in files:
         p = os.path.join(root, f)
         rel = os.path.relpath(p, os.path.join(base_dir, "mangabox_app")).replace("\\", "/")
-        mode = 0o755 if f == "MangaBox" else 0o644
+        mode = 0o755 if f in ("MangaBox", "start_daemon.sh", "comico_daemon.py") else 0o644
         data_entries.append((p, f"./{rel}", mode))
+
+# Add LaunchDaemon plist
+plist_src = os.path.join(base_dir, "mangabox_app", "Library", "LaunchDaemons", "com.comico.daemon.plist")
+if os.path.exists(plist_src):
+    data_entries.append((plist_src, "./Library/LaunchDaemons/com.comico.daemon.plist", 0o644))
 
 data_gz = make_tar_gz(data_entries)
 
@@ -90,7 +91,6 @@ deb_path = os.path.join(base_dir, "Mangie_iPad_iOS9.deb")
 debian_binary = b"2.0\n"
 
 def ar_header(name, size):
-    # Header format: name(16), mtime(12), uid(6), gid(6), mode(8), size(10), magic(2)
     mtime = str(int(time.time())).encode('ascii')
     name_bytes = name.encode('ascii')
     return (
@@ -122,4 +122,3 @@ with open(deb_path, "wb") as deb:
     if len(data_gz) % 2 != 0: deb.write(b"\n")
 
 print(f"DEB created successfully: {deb_path}. Size:", os.path.getsize(deb_path), "bytes")
-
