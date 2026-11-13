@@ -24,8 +24,8 @@ Comico_FILES = \
     $(wildcard vendor/mbedtls/library/*.c)
 
 Comico_FRAMEWORKS = UIKit Foundation CoreGraphics QuartzCore
-Comico_CFLAGS = -O2 -Isrc -Isrc/Models -Isrc/Services -Isrc/Views -Isrc/Controllers -Ivendor/mbedtls/include -Ivendor/mbedtls/library -Wno-unused-function -Wno-deprecated-declarations -Wno-macro-redefined
-Comico_OBJCFLAGS = -fobjc-arc
+Comico_CFLAGS = -O2 -Isrc -Isrc/Models -Isrc/Services -Isrc/Views -Isrc/Controllers -Ivendor/mbedtls/include -Ivendor/mbedtls/library -Wno-unused-function -Wno-deprecated-declarations -Wno-macro-redefined -Wno-unused-property-ivar
+Comico_OBJCFLAGS = -fobjc-arc -Wno-unused-property-ivar
 Comico_CODESIGN_FLAGS = -Sentitlements.xml
 
 include $(THEOS_MAKE_PATH)/application.mk
