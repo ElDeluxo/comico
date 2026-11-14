@@ -1,0 +1,35 @@
+[1;31m> [1;3;39mMaking all for application Comico…[m
+[0;35m==> [1;39mCopying resource directories into the application wrapper…[m
+[0;32m==> [1;39mCompiling src/AppDelegate.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/main.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/AppDelegate.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/Models/Comic.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/Models/Chapter.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/Models/Comic.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/Services/FavoritesManager.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/Services/FavoritesManager.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/Models/Chapter.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/main.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/Services/APIService.m (arm64)…[m
+[1msrc/Services/APIService.m:491:13: [0m[0;1;31merror: [0m[1mimplicit declaration of function 'ComicoLog' is invalid in C99 [-Werror,-Wimplicit-function-declaration][0m
+            ComicoLog(@"❌ Excepción al procesar JSON: %@", ex.reason);
+[0;1;32m            ^
+[0m1 error generated.
+make[3]: *** [/home/runner/theos/makefiles/instance/rules.mk:305: /home/runner/work/comico/comico/.theos/obj/arm64/src/Services/APIService.m.48c61846.o] Error 1
+make[3]: *** Waiting for unfinished jobs....
+[0;32m==> [1;39mCompiling src/Services/ImageCache.m (armv7)…[m
+[0;32m==> [1;39mCompiling src/Services/APIService.m (armv7)…[m
+[1msrc/Services/APIService.m:491:13: [0m[0;1;31merror: [0m[1mimplicit declaration of function 'ComicoLog' is invalid in C99 [-Werror,-Wimplicit-function-declaration][0m
+            ComicoLog(@"❌ Excepción al procesar JSON: %@", ex.reason);
+[0;1;32m            ^
+[0m1 error generated.
+make[3]: *** [/home/runner/theos/makefiles/instance/rules.mk:305: /home/runner/work/comico/comico/.theos/obj/armv7/src/Services/APIService.m.b849296d.o] Error 1
+make[3]: *** Waiting for unfinished jobs....
+[0;32m==> [1;39mCompiling src/Services/ImageCache.m (arm64)…[m
+[0;32m==> [1;39mCompiling src/Services/TLSHTTPClient.m (arm64)…[m
+make[2]: *** [/home/runner/theos/makefiles/instance/application.mk:50: /home/runner/work/comico/comico/.theos/obj/arm64/Comico.app/Comico] Error 2
+make[2]: *** Waiting for unfinished jobs....
+[0;32m==> [1;39mCompiling src/Services/TLSHTTPClient.m (armv7)…[m
+make[2]: *** [/home/runner/theos/makefiles/instance/application.mk:50: /home/runner/work/comico/comico/.theos/obj/armv7/Comico.app/Comico] Error 2
+make[1]: *** [/home/runner/theos/makefiles/instance/application.mk:41: internal-application-all_] Error 2
+make: *** [/home/runner/theos/makefiles/master/rules.mk:146: Comico.all.application.variables] Error 2
