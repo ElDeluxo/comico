@@ -16,6 +16,8 @@
     
     id cId = dict[@"id"];
     if (![cId isKindOfClass:[NSString class]] || [cId length] == 0) return nil;
+    
+    Chapter *ch = [[Chapter alloc] init];
     ch.chapterId = cId;
     
     id chNum = attrs[@"chapter"];
