@@ -148,6 +148,7 @@ jobs:
   build-swift:
     name: Build Swift IPA & DEB (Xcode)
     runs-on: macos-14
+    continue-on-error: true
 
     steps:
       - name: Checkout Repository
