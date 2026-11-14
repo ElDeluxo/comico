@@ -1,235 +1,218 @@
 #import "APIService.h"
 #import "TLSHTTPClient.h"
-#import "DebugViewController.h"
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
 
-static NSArray<NSDictionary *> *s_popularWesternComics(void) {
-    return @[
-        @{
-            @"identifier": @"alan-moore-watchmen",
-            @"title": @"Watchmen (Alan Moore & Dave Gibbons)",
-            @"description": @"La aclamada novela gráfica sobre moralidad, poder y vigilantes en plena Guerra Fría. Edición completa."
-        },
-        @{
-            @"identifier": @"BatmanTheKillingJokeDeluxeHCEdition2008MinutemenY2K",
-            @"title": @"Batman: The Killing Joke (Deluxe)",
-            @"description": @"El origen definitivo del Joker creado por Alan Moore y Brian Bolland."
-        },
-        @{
-            @"identifier": @"BatmanTheDarkKnightReturns03of041986",
-            @"title": @"Batman: The Dark Knight Returns",
-            @"description": @"La legendaria obra maestra de Frank Miller donde un Bruce Wayne envejecido retoma el manto."
-        },
-        @{
-            @"identifier": @"v-for-vendetta-by-alan-moore-david-lloyd",
-            @"title": @"V for Vendetta (Alan Moore)",
-            @"description": @"En un futuro distópico, un misterioso anarquista inicia una revolución."
-        },
-        @{
-            @"identifier": @"batmanthelonghalloween1998digitalzoneempire",
-            @"title": @"Batman: The Long Halloween",
-            @"description": @"Un asesino serial llamado Holiday aterroriza Gotham City en los primeros años de Batman."
-        },
-        @{
-            @"identifier": @"871-amazing-spiderman",
-            @"title": @"The Amazing Spider-Man (Clásicos)",
-            @"description": @"Colección de aventuras clásicas del Hombre Araña de Marvel Comics."
-        }
-    ];
-}
-
 @interface APIService () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
-@property (nonatomic, strong) NSURLSession *session;
+@property(nonatomic, strong) NSURLSession *session;
 @end
 
 @implementation APIService
 
 + (instancetype)sharedService {
-    static APIService *instance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [[APIService alloc] init];
-    });
-    return instance;
+  static APIService *instance = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    instance = [[APIService alloc] init];
+  });
+  return instance;
 }
 
 - (instancetype)init {
-    self = [super init];
-    if (self) {
-        NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-        config.timeoutIntervalForRequest = 30.0;
-        config.timeoutIntervalForResource = 60.0;
-        _session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
-    }
-    return self;
+  self = [super init];
+  if (self) {
+    NSURLSessionConfiguration *config =
+        [NSURLSessionConfiguration defaultSessionConfiguration];
+    config.timeoutIntervalForRequest = 30.0;
+    config.timeoutIntervalForResource = 60.0;
+    _session = [NSURLSession sessionWithConfiguration:config
+                                             delegate:self
+                                        delegateQueue:nil];
+  }
+  return self;
 }
 
 #pragma mark - Custom Proxy / Server URL
 
 - (NSString *)customServerURL {
-    return [[NSUserDefaults standardUserDefaults] stringForKey:@"comico_custom_server_url"] ?: @"";
+  return [[NSUserDefaults standardUserDefaults]
+             stringForKey:@"comico_custom_server_url"]
+             ?: @"";
 }
 
 - (void)saveCustomServerURL:(NSString *)url {
-    NSString *trimmed = [url stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (trimmed.length > 0) {
-        if ([trimmed hasSuffix:@"/"]) {
-            trimmed = [trimmed substringToIndex:trimmed.length - 1];
-        }
-        [[NSUserDefaults standardUserDefaults] setObject:trimmed forKey:@"comico_custom_server_url"];
-    } else {
-        [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"comico_custom_server_url"];
+  NSString *trimmed = [url
+      stringByTrimmingCharactersInSet:[NSCharacterSet
+                                          whitespaceAndNewlineCharacterSet]];
+  if (trimmed.length > 0) {
+    if ([trimmed hasSuffix:@"/"]) {
+      trimmed = [trimmed substringToIndex:trimmed.length - 1];
     }
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [[NSUserDefaults standardUserDefaults]
+        setObject:trimmed
+           forKey:@"comico_custom_server_url"];
+  } else {
+    [[NSUserDefaults standardUserDefaults]
+        removeObjectForKey:@"comico_custom_server_url"];
+  }
+  [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (NSString *)effectiveBaseURL {
-    NSString *custom = [self customServerURL];
-    if (custom.length > 0) {
-        return custom;
-    }
-    return kBaseURL;
+  NSString *custom = [self customServerURL];
+  if (custom.length > 0) {
+    return custom;
+  }
+  return kBaseURL;
 }
 
 - (NSString *)proxiedImageURL:(NSString *)originalURL {
-    if (!originalURL || originalURL.length == 0) return originalURL;
-    NSString *custom = [self customServerURL];
-    if (custom.length > 0 && [originalURL hasPrefix:@"https://"]) {
-        NSString *encoded = [originalURL stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-        return [NSString stringWithFormat:@"%@/image?url=%@", custom, encoded];
-    }
+  if (!originalURL || originalURL.length == 0)
     return originalURL;
+  NSString *custom = [self customServerURL];
+  if (custom.length > 0 && [originalURL hasPrefix:@"https://"]) {
+    NSString *encoded =
+        [originalURL stringByAddingPercentEncodingWithAllowedCharacters:
+                         [NSCharacterSet URLQueryAllowedCharacterSet]];
+    return [NSString stringWithFormat:@"%@/image?url=%@", custom, encoded];
+  }
+  return originalURL;
 }
 
 #pragma mark - NSURLSessionDelegate & TaskDelegate (Bypass de certificados SSL en iOS 9)
 
 - (void)URLSession:(NSURLSession *)session
-didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
- completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
-    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
-        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
-    } else {
-        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
-    }
+    didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+      completionHandler:
+          (void (^)(NSURLSessionAuthChallengeDisposition disposition,
+                    NSURLCredential *credential))completionHandler {
+  if ([challenge.protectionSpace.authenticationMethod
+          isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+    completionHandler(
+        NSURLSessionAuthChallengeUseCredential,
+        [NSURLCredential
+            credentialForTrust:challenge.protectionSpace.serverTrust]);
+  } else {
+    completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+  }
 }
 
 - (void)URLSession:(NSURLSession *)session
-              task:(NSURLSessionTask *)task
-didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
- completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
-    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
-        completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
-    } else {
-        completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
-    }
+                   task:(NSURLSessionTask *)task
+    didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
+      completionHandler:
+          (void (^)(NSURLSessionAuthChallengeDisposition disposition,
+                    NSURLCredential *credential))completionHandler {
+  if ([challenge.protectionSpace.authenticationMethod
+          isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+    completionHandler(
+        NSURLSessionAuthChallengeUseCredential,
+        [NSURLCredential
+            credentialForTrust:challenge.protectionSpace.serverTrust]);
+  } else {
+    completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+  }
 }
 
 #pragma mark - Public API
 
 - (void)fetchComicsForCategory:(ComicCategory)category
                           page:(NSInteger)page
-                    completion:(void(^)(NSArray<Comic *> *comics, NSError *error))completion {
-    NSInteger limit = 20;
-    NSInteger offset = page * limit;
-    
-    NSString *langParam = @"";
-    switch (category) {
-        case ComicCategoryWestern:
-            langParam = @"&originalLanguage%5B%5D=en";
-            break;
-        case ComicCategoryManhwa:
-            langParam = @"&originalLanguage%5B%5D=ko";
-            break;
-        case ComicCategoryManga:
-            langParam = @"&originalLanguage%5B%5D=ja";
-            break;
-        case ComicCategoryManhua:
-            langParam = @"&originalLanguage%5B%5D=zh";
-            break;
-        case ComicCategoryAll:
-        default:
-            langParam = @"";
-            break;
-    }
-    
-    // Usamos corchetes percent-encoded (%5B y %5D) para compatibilidad total con el parser de URLs de iOS 9
-    NSString *urlStr = [NSString stringWithFormat:@"%@/manga?limit=%ld&offset=%ld&order%%5BfollowedCount%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive%@", [self effectiveBaseURL], (long)limit, (long)offset, langParam];
-    
-    NSURL *url = [NSURL URLWithString:urlStr];
-    [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
-        if (error) {
-            completion(nil, error);
-            return;
-        }
-        
-        NSArray *data = json[@"data"];
-        NSMutableArray<Comic *> *comics = [NSMutableArray array];
-        
-        // 1. En la primera página, añadir cómics occidentales populares curados
-        if (page == 0) {
-            for (NSDictionary *doc in s_popularWesternComics()) {
-                Comic *c = [Comic comicFromInternetArchiveDoc:doc];
-                if (c) {
-                    [comics addObject:c];
-                }
-            }
-        }
-        
-        // 2. Añadir mangas de MangaDex
-        if ([data isKindOfClass:[NSArray class]]) {
-            for (NSDictionary *item in data) {
-                Comic *c = [Comic comicFromMangaDexJSON:item];
-                if (c) {
-                    [comics addObject:c];
-                }
-            }
-        }
-        completion(comics, nil);
-    }];
+                    completion:(void (^)(NSArray<Comic *> *comics,
+                                         NSError *error))completion {
+  NSInteger limit = 20;
+  NSInteger offset = page * limit;
+
+  NSString *langParam = @"";
+  switch (category) {
+  case ComicCategoryWestern:
+    langParam = @"&originalLanguage%5B%5D=en";
+    break;
+  case ComicCategoryManhwa:
+    langParam = @"&originalLanguage%5B%5D=ko";
+    break;
+  case ComicCategoryManga:
+    langParam = @"&originalLanguage%5B%5D=ja";
+    break;
+  case ComicCategoryManhua:
+    langParam = @"&originalLanguage%5B%5D=zh";
+    break;
+  case ComicCategoryAll:
+  default:
+    langParam = @"";
+    break;
+  }
+
+  // Usamos corchetes percent-encoded (%5B y %5D) para compatibilidad total con
+  // el parser de URLs de iOS 9
+  NSString *urlStr = [NSString
+      stringWithFormat:
+          @"%@/"
+          @"manga?limit=%ld&offset=%ld&order%%5BfollowedCount%%5D=desc&"
+          @"includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%"
+          @"5B%%5D=safe&contentRating%%5B%%5D=suggestive%@",
+          [self effectiveBaseURL], (long)limit, (long)offset, langParam];
+
+  NSURL *url = [NSURL URLWithString:urlStr];
+  [self performDataTaskWithURL:url
+                    completion:^(NSDictionary *json, NSError *error) {
+                      if (error) {
+                        completion(nil, error);
+                        return;
+                      }
+
+                      NSArray *data = json[@"data"];
+                      NSMutableArray<Comic *> *comics = [NSMutableArray array];
+                      if ([data isKindOfClass:[NSArray class]]) {
+                        for (NSDictionary *item in data) {
+                          Comic *c = [Comic comicFromMangaDexJSON:item];
+                          if (c) {
+                            [comics addObject:c];
+                          }
+                        }
+                      }
+                      completion(comics, nil);
+                    }];
 }
 
 - (void)searchComicsWithQuery:(NSString *)query
                          page:(NSInteger)page
-                   completion:(void(^)(NSArray<Comic *> *comics, NSError *error))completion {
-    NSInteger limit = 20;
-    NSInteger offset = page * limit;
-    
-    NSString *encodedQuery = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-    
-    // 1. Buscar en Internet Archive para Cómics Occidentales
-    NSString *iaUrlStr = [NSString stringWithFormat:@"https://archive.org/advancedsearch.php?q=title%%3A(%@)%%20AND%%20mediatype%%3A(texts)%%20AND%%20-collection%%3A(inlibrary)&fl[]=identifier,title,description,downloads&sort[]=downloads+desc&output=json&rows=10", encodedQuery];
-    NSURL *iaUrl = [NSURL URLWithString:iaUrlStr];
-    
-    [self performDataTaskWithURL:iaUrl completion:^(NSDictionary *iaJson, NSError *iaErr) {
-        NSMutableArray<Comic *> *combinedComics = [NSMutableArray array];
-        
-        NSArray *docs = iaJson[@"response"][@"docs"];
-        if ([docs isKindOfClass:[NSArray class]]) {
-            for (NSDictionary *doc in docs) {
-                Comic *c = [Comic comicFromInternetArchiveDoc:doc];
-                if (c) {
-                    [combinedComics addObject:c];
-                }
-            }
-        }
-        
-        // 2. Buscar en MangaDex
-        NSString *urlStr = [NSString stringWithFormat:@"%@/manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%5B%%5D=safe&contentRating%%5B%%5D=suggestive", [self effectiveBaseURL], encodedQuery, (long)limit, (long)offset];
-        NSURL *url = [NSURL URLWithString:urlStr];
-        [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
-            NSArray *data = json[@"data"];
-            if ([data isKindOfClass:[NSArray class]]) {
-                for (NSDictionary *item in data) {
-                    Comic *c = [Comic comicFromMangaDexJSON:item];
-                    if (c) {
-                        [combinedComics addObject:c];
-                    }
-                }
-            }
-            completion(combinedComics, nil);
-        }];
-    }];
+                   completion:(void (^)(NSArray<Comic *> *comics,
+                                        NSError *error))completion {
+  NSInteger limit = 20;
+  NSInteger offset = page * limit;
+
+  NSString *encodedQuery =
+      [query stringByAddingPercentEncodingWithAllowedCharacters:
+                 [NSCharacterSet URLQueryAllowedCharacterSet]];
+  NSString *urlStr = [NSString
+      stringWithFormat:
+          @"%@/"
+          @"manga?title=%@&limit=%ld&offset=%ld&order%%5Brelevance%%5D=desc&"
+          @"includes%%5B%%5D=cover_art&includes%%5B%%5D=author&contentRating%%"
+          @"5B%%5D=safe&contentRating%%5B%%5D=suggestive",
+          [self effectiveBaseURL], encodedQuery, (long)limit, (long)offset];
+
+  NSURL *url = [NSURL URLWithString:urlStr];
+  [self performDataTaskWithURL:url
+                    completion:^(NSDictionary *json, NSError *error) {
+                      if (error) {
+                        completion(nil, error);
+                        return;
+                      }
+
+                      NSArray *data = json[@"data"];
+                      NSMutableArray<Comic *> *comics = [NSMutableArray array];
+                      if ([data isKindOfClass:[NSArray class]]) {
+                        for (NSDictionary *item in data) {
+                          Comic *c = [Comic comicFromMangaDexJSON:item];
+                          if (c) {
+                            [comics addObject:c];
+                          }
+                        }
+                      }
+                      completion(comics, nil);
+                    }];
 }
 
 - (void)fetchChaptersForComicId:(NSString *)comicId
@@ -387,101 +370,150 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 }
 
 - (void)fetchPagesForChapterId:(NSString *)chapterId
-                    completion:(void(^)(NSArray<NSString *> *pageURLs, NSError *error))completion {
-    // 1. Cómics Occidentales de Internet Archive
-    if ([chapterId hasPrefix:@"ia__"]) {
-        NSArray<NSString *> *parts = [chapterId componentsSeparatedByString:@"__"];
-        if (parts.count >= 5 && [parts[2] isEqualToString:@"range"]) {
-            NSString *ident = parts[1];
-            NSInteger start = [parts[3] integerValue];
-            NSInteger count = [parts[4] integerValue];
-            
-            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
-            for (NSInteger p = 0; p < count; p++) {
-                NSInteger actualPage = start + p;
-                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)actualPage];
-                [pageURLs addObject:pageURL];
-            }
-            completion(pageURLs, nil);
-            return;
-        } else if (parts.count >= 5 && [parts[2] isEqualToString:@"sub"]) {
-            NSString *ident = parts[1];
-            NSString *subPrefix = [parts[3] stringByRemovingPercentEncoding] ?: parts[3];
-            NSInteger count = [parts[4] integerValue];
-            if (count <= 0) count = 35;
-            
-            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
-            for (NSInteger p = 0; p < count; p++) {
-                NSString *encodedPrefix = [subPrefix stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLPathAllowedCharacterSet]];
-                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/%@/page/n%ld.jpg", ident, encodedPrefix, (long)p];
-                [pageURLs addObject:pageURL];
-            }
-            completion(pageURLs, nil);
-            return;
-        } else if (parts.count >= 2) {
-            NSString *ident = parts[1];
-            NSMutableArray<NSString *> *pageURLs = [NSMutableArray array];
-            for (NSInteger p = 0; p < 35; p++) {
-                NSString *pageURL = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)p];
-                [pageURLs addObject:pageURL];
-            }
-            completion(pageURLs, nil);
-            return;
-        }
-    }
-    
-    // 2. Mangas de MangaDex
-    NSString *urlStr = [NSString stringWithFormat:@"%@/at-home/server/%@", [self effectiveBaseURL], chapterId];
-    
-    NSURL *url = [NSURL URLWithString:urlStr];
-    [self performDataTaskWithURL:url completion:^(NSDictionary *json, NSError *error) {
-        if (error) {
-            completion(nil, error);
-            return;
-        }
-        
-        NSString *baseUrl = json[@"baseUrl"];
-        NSDictionary *chapter = json[@"chapter"];
-        if (!baseUrl || ![chapter isKindOfClass:[NSDictionary class]]) {
-            NSError *err = [NSError errorWithDomain:@"com.comico" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Formato de respuesta inválido de páginas"}];
-            completion(nil, err);
-            return;
-        }
-        
-        NSString *hash = chapter[@"hash"];
-        if (!hash || hash.length == 0) {
-            NSError *err = [NSError errorWithDomain:@"com.comico" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"Capítulo sin hash de imágenes"}];
-            completion(nil, err);
-            return;
-        }
-        
-        NSArray *dataSaver = chapter[@"dataSaver"];
-        NSArray *data = chapter[@"data"];
-        
-        NSMutableArray<NSString *> *urls = [NSMutableArray array];
-        
-        // Lógica idéntica a MangaBox (0x4e7f6): preferir data-saver comprimido para ahorrar RAM en iOS 9
-        if ([dataSaver isKindOfClass:[NSArray class]] && dataSaver.count > 0) {
-            for (NSString *fn in dataSaver) {
-                NSString *pUrl = [NSString stringWithFormat:@"%@/data-saver/%@/%@", baseUrl, hash, fn];
-                [urls addObject:[self proxiedImageURL:pUrl]];
-            }
-        } else if ([data isKindOfClass:[NSArray class]] && data.count > 0) {
-            for (NSString *fn in data) {
-                NSString *pUrl = [NSString stringWithFormat:@"%@/data/%@/%@", baseUrl, hash, fn];
-                [urls addObject:[self proxiedImageURL:pUrl]];
-            }
-        }
-        
-        if (urls.count == 0) {
-            NSError *err = [NSError errorWithDomain:@"com.comico" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"Capítulo sin páginas disponibles"}];
-            completion(nil, err);
-            return;
-        }
-        
-        completion(urls, nil);
-    }];
+                    completion:(void (^)(NSArray<NSString *> *pageURLs,
+                                         NSError *error))completion {
+  NSString *urlStr =
+      [NSString stringWithFormat:@"%@/at-home/server/%@",
+                                 [self effectiveBaseURL], chapterId];
+
+  NSURL *url = [NSURL URLWithString:urlStr];
+  [self performDataTaskWithURL:url
+                    completion:^(NSDictionary *json, NSError *error) {
+                      if (error) {
+                        completion(nil, error);
+                        return;
+                      }
+
+                      NSString *baseUrl = json[@"baseUrl"];
+                      NSDictionary *chapter = json[@"chapter"];
+                      if (!baseUrl ||
+                          ![chapter isKindOfClass:[NSDictionary class]]) {
+                        NSError *err =
+                            [NSError errorWithDomain:@"com.comico"
+                                                code:-1
+                                            userInfo:@{
+                                              NSLocalizedDescriptionKey :
+                                                  @"Formato de respuesta "
+                                                  @"inválido de páginas"
+                                            }];
+                        completion(nil, err);
+                        return;
+                      }
+
+                      NSString *hash = chapter[@"hash"];
+                      if (!hash || hash.length == 0) {
+                        NSError *err = [NSError
+                            errorWithDomain:@"com.comico"
+                                       code:-2
+                                   userInfo:@{
+                                     NSLocalizedDescriptionKey :
+                                         @"Capítulo sin hash de imágenes"
+                                   }];
+                        completion(nil, err);
+                        return;
+                      }
+
+                      NSArray *dataSaver = chapter[@"dataSaver"];
+                      NSArray *data = chapter[@"data"];
+
+                      NSMutableArray<NSString *> *urls = [NSMutableArray array];
+
+                      // Lógica idéntica a MangaBox (0x4e7f6): preferir
+                      // data-saver comprimido para ahorrar RAM en iOS 9
+                      if ([dataSaver isKindOfClass:[NSArray class]] &&
+                          dataSaver.count > 0) {
+                        for (NSString *fn in dataSaver) {
+                          NSString *pUrl =
+                              [NSString stringWithFormat:@"%@/data-saver/%@/%@",
+                                                         baseUrl, hash, fn];
+                          [urls addObject:[self proxiedImageURL:pUrl]];
+                        }
+                      } else if ([data isKindOfClass:[NSArray class]] &&
+                                 data.count > 0) {
+                        for (NSString *fn in data) {
+                          NSString *pUrl =
+                              [NSString stringWithFormat:@"%@/data/%@/%@",
+                                                         baseUrl, hash, fn];
+                          [urls addObject:[self proxiedImageURL:pUrl]];
+                        }
+                      }
+
+                      if (urls.count == 0) {
+                        NSError *err = [NSError
+                            errorWithDomain:@"com.comico"
+                                       code:-3
+                                   userInfo:@{
+                                     NSLocalizedDescriptionKey :
+                                         @"Capítulo sin páginas disponibles"
+                                   }];
+                        completion(nil, err);
+                        return;
+                      }
+
+                      completion(urls, nil);
+                    }];
 }
+
+- (void)performDataTaskWithURL:(NSURL *)url
+                    completion:(void (^)(NSDictionary *json,
+                                         NSError *error))completion {
+  if (!url) {
+    NSError *err = [NSError
+        errorWithDomain:@"com.comico"
+                   code:-100
+               userInfo:@{NSLocalizedDescriptionKey : @"URL inválida"}];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      completion(nil, err);
+    });
+    return;
+  }
+
+  NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+  [req setValue:
+           @"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)"
+      forHTTPHeaderField:@"User-Agent"];
+  [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+
+  [[TLSHTTPClient sharedClient]
+      performRequest:req
+          completion:^(NSData *data, NSHTTPURLResponse *httpRes,
+                       NSError *netError) {
+            if (netError) {
+              completion(nil, netError);
+              return;
+            }
+
+            if (httpRes &&
+                (httpRes.statusCode < 200 || httpRes.statusCode >= 300)) {
+              NSError *err = [NSError
+                  errorWithDomain:@"com.comico"
+                             code:httpRes.statusCode
+                         userInfo:@{
+                           NSLocalizedDescriptionKey : [NSString
+                               stringWithFormat:
+                                   @"Error HTTP %ld al conectar con MangaDex",
+                                   (long)httpRes.statusCode]
+                         }];
+              completion(nil, err);
+              return;
+            }
+
+            NSError *jsonError = nil;
+            NSDictionary *json =
+                [NSJSONSerialization JSONObjectWithData:data
+                                                options:0
+                                                  error:&jsonError];
+            if (jsonError || ![json isKindOfClass:[NSDictionary class]]) {
+              completion(nil,
+                         jsonError
+                             ?: [NSError errorWithDomain:@"com.comico"
+                                                    code:-101
+                                                userInfo:@{
+                                                  NSLocalizedDescriptionKey :
+                                                      @"Error al procesar JSON"
+                                                }]);
+              return;
+            }
 
 - (void)performDataTaskWithURL:(NSURL *)url completion:(void(^)(NSDictionary *json, NSError *error))completion {
     if (!url) {

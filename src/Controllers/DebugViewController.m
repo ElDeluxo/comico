@@ -4,22 +4,28 @@
 
 NSString *const ComicoLogNotification = @"ComicoLogNotification";
 NSString *const ComicoLogMessageKey = @"ComicoLogMessageKey";
-NSString * const ComicoSkipThumbnailsKey = @"ComicoSkipThumbnailsKey";
-NSString * const ComicoSettingsChangedNotification = @"ComicoSettingsChangedNotification";
+NSString *const ComicoSkipThumbnailsKey = @"ComicoSkipThumbnailsKey";
+NSString *const ComicoSettingsChangedNotification =
+    @"ComicoSettingsChangedNotification";
 
 BOOL ComicoIsSkipThumbnailsEnabled(void) {
-    id val = [[NSUserDefaults standardUserDefaults] objectForKey:ComicoSkipThumbnailsKey];
-    if (val == nil) {
-        // Por defecto: Omitir miniaturas activado (YES) para prevenir crashes en dispositivos con poca RAM (iOS 9)
-        return YES;
-    }
-    return [val boolValue];
+  id val = [[NSUserDefaults standardUserDefaults]
+      objectForKey:ComicoSkipThumbnailsKey];
+  if (val == nil) {
+    // Por defecto: Omitir miniaturas activado (YES) para prevenir crashes en
+    // dispositivos con poca RAM (iOS 9)
+    return YES;
+  }
+  return [val boolValue];
 }
 
 void ComicoSetSkipThumbnailsEnabled(BOOL enabled) {
-    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:ComicoSkipThumbnailsKey];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-    [[NSNotificationCenter defaultCenter] postNotificationName:ComicoSettingsChangedNotification object:nil];
+  [[NSUserDefaults standardUserDefaults] setBool:enabled
+                                          forKey:ComicoSkipThumbnailsKey];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:ComicoSettingsChangedNotification
+                    object:nil];
 }
 
 static NSMutableArray<NSString *> *s_logHistory = nil;
@@ -251,8 +257,10 @@ static double get_app_memory_mb(void) {
 }
 
 - (void)skipThumbnailsToggled:(UISwitch *)sender {
-    ComicoSetSkipThumbnailsEnabled(sender.isOn);
-    ComicoLog(@"⚙️ Omitir miniaturas: %@", sender.isOn ? @"ACTIVADO (Modo Seguro - Sin Portadas)" : @"DESACTIVADO (Cargar Portadas)");
+  ComicoSetSkipThumbnailsEnabled(sender.isOn);
+  ComicoLog(@"⚙️ Omitir miniaturas: %@",
+            sender.isOn ? @"ACTIVADO (Modo Seguro - Sin Portadas)"
+                        : @"DESACTIVADO (Cargar Portadas)");
 }
 
 - (void)clearConsole {

@@ -162,19 +162,13 @@ static UIImage *downscaledCoverImage(UIImage *img) {
     if (!urlString || urlString.length == 0 || ComicoIsSkipThumbnailsEnabled()) {
         if (completion) completion(nil);
         return;
-      }
     }
-
-    // 3. Network Fetch con User-Agent
-    NSString *targetURL =
-        [[APIService sharedService] proxiedImageURL:urlString];
-    NSURL *url = [NSURL URLWithString:targetURL];
-    if (!url) {
-      dispatch_async(dispatch_get_main_queue(), ^{
-        if (completion)
-          completion(nil);
-      });
-      return;
+    
+    // 1. RAM Cache (Instantáneo, en hilo principal)
+    UIImage *cachedImg = [self.memCache objectForKey:urlString];
+    if (cachedImg) {
+        if (completion) completion(cachedImg);
+        return;
     }
     
     // 2. Disk Cache en segundo plano

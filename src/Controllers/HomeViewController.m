@@ -32,47 +32,56 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
 @implementation HomeViewController
 
 - (void)viewDidLoad {
-    [super viewDidLoad];
-    
-    self.title = @"Comico";
-    self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"⚙️ Servidor" style:UIBarButtonItemStylePlain target:self action:@selector(showServerSettings)];
-    
-    // Evita que los elementos queden ocultos debajo de la barra de navegación en iOS 9
-    self.edgesForExtendedLayout = UIRectEdgeNone;
-    self.extendedLayoutIncludesOpaqueBars = NO;
-    self.automaticallyAdjustsScrollViewInsets = NO;
-    
-    self.comics = [NSMutableArray array];
-    self.currentPage = 0;
-    self.hasMore = YES;
-    self.currentCategory = ComicCategoryAll;
-    
-    [self setupHeaderAndSearchBar];
-    [self setupCollectionView];
-    [self setupLoadingIndicator];
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(handleSettingsChanged:)
-                                                 name:ComicoSettingsChangedNotification
-                                               object:nil];
-    
-    [self loadComicsResetting:YES];
+  [super viewDidLoad];
+
+  self.title = @"Comico";
+  self.view.backgroundColor = [UIColor colorWithRed:0.08
+                                              green:0.08
+                                               blue:0.12
+                                              alpha:1.0];
+  self.navigationItem.rightBarButtonItem =
+      [[UIBarButtonItem alloc] initWithTitle:@"⚙️ Servidor"
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(showServerSettings)];
+
+  // Evita que los elementos queden ocultos debajo de la barra de navegación en
+  // iOS 9
+  self.edgesForExtendedLayout = UIRectEdgeNone;
+  self.extendedLayoutIncludesOpaqueBars = NO;
+  self.automaticallyAdjustsScrollViewInsets = NO;
+
+  self.comics = [NSMutableArray array];
+  self.currentPage = 0;
+  self.hasMore = YES;
+  self.currentCategory = ComicCategoryAll;
+
+  [self setupHeaderAndSearchBar];
+  [self setupCollectionView];
+  [self setupLoadingIndicator];
+
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(handleSettingsChanged:)
+             name:ComicoSettingsChangedNotification
+           object:nil];
+
+  [self loadComicsResetting:YES];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    [self.collectionView reloadData];
+  [super viewWillAppear:animated];
+  [self.collectionView reloadData];
 }
 
 - (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)handleSettingsChanged:(NSNotification *)note {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.collectionView reloadData];
-    });
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self.collectionView reloadData];
+  });
 }
 
 - (void)viewDidLayoutSubviews {
