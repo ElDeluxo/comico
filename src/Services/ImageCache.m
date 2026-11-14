@@ -1,24 +1,28 @@
 #import "ImageCache.h"
 #import "APIService.h"
-#import "TLSHTTPClient.h"
 #import "DebugViewController.h"
+#import "TLSHTTPClient.h"
 #import <CommonCrypto/CommonDigest.h>
 
 static UIImage *downscaledCoverImage(UIImage *img) {
-    if (!img) return nil;
-    CGSize orig = img.size;
-    CGFloat maxDim = 320.0;
-    if (orig.width <= maxDim && orig.height <= maxDim) return img;
-    
-    CGFloat ratio = MIN(maxDim / orig.width, maxDim / orig.height);
-    CGSize newSize = CGSizeMake(floor(orig.width * ratio), floor(orig.height * ratio));
-    if (newSize.width < 1 || newSize.height < 1) return img;
-    
-    UIGraphicsBeginImageContextWithOptions(newSize, YES, 1.0);
-    [img drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
-    UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    return scaled ?: img;
+  if (!img)
+    return nil;
+  CGSize orig = img.size;
+  CGFloat maxDim = 320.0;
+  if (orig.width <= maxDim && orig.height <= maxDim)
+    return img;
+
+  CGFloat ratio = MIN(maxDim / orig.width, maxDim / orig.height);
+  CGSize newSize =
+      CGSizeMake(floor(orig.width * ratio), floor(orig.height * ratio));
+  if (newSize.width < 1 || newSize.height < 1)
+    return img;
+
+  UIGraphicsBeginImageContextWithOptions(newSize, YES, 1.0);
+  [img drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
+  UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
+  UIGraphicsEndImageContext();
+  return scaled ?: img;
 }
 
 @interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
@@ -40,29 +44,40 @@ static UIImage *downscaledCoverImage(UIImage *img) {
 }
 
 - (instancetype)init {
-    self = [super init];
-    if (self) {
-        _memCache = [[NSCache alloc] init];
-        _memCache.countLimit = 20; // 20 portadas en memoria para no saturar RAM en iOS 9
-        _memCache.totalCostLimit = 10 * 1024 * 1024; // 10 MB RAM max
-        
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-        _diskCachePath = [[paths firstObject] stringByAppendingPathComponent:@"ComicoImages"];
-        [[NSFileManager defaultManager] createDirectoryAtPath:_diskCachePath withIntermediateDirectories:YES attributes:nil error:nil];
-        
-        _ioQueue = dispatch_queue_create("com.comico.imagecache.io", DISPATCH_QUEUE_SERIAL);
-        
-        NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-        config.timeoutIntervalForRequest = 25.0;
-        config.timeoutIntervalForResource = 60.0;
-        _session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
-        
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(handleMemoryWarning)
-                                                     name:UIApplicationDidReceiveMemoryWarningNotification
-                                                   object:nil];
-    }
-    return self;
+  self = [super init];
+  if (self) {
+    _memCache = [[NSCache alloc] init];
+    _memCache.countLimit =
+        20; // 20 portadas en memoria para no saturar RAM en iOS 9
+    _memCache.totalCostLimit = 10 * 1024 * 1024; // 10 MB RAM max
+
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                         NSUserDomainMask, YES);
+    _diskCachePath =
+        [[paths firstObject] stringByAppendingPathComponent:@"ComicoImages"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:_diskCachePath
+                              withIntermediateDirectories:YES
+                                               attributes:nil
+                                                    error:nil];
+
+    _ioQueue = dispatch_queue_create("com.comico.imagecache.io",
+                                     DISPATCH_QUEUE_SERIAL);
+
+    NSURLSessionConfiguration *config =
+        [NSURLSessionConfiguration defaultSessionConfiguration];
+    config.timeoutIntervalForRequest = 25.0;
+    config.timeoutIntervalForResource = 60.0;
+    _session = [NSURLSession sessionWithConfiguration:config
+                                             delegate:self
+                                        delegateQueue:nil];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(handleMemoryWarning)
+               name:UIApplicationDidReceiveMemoryWarningNotification
+             object:nil];
+  }
+  return self;
 }
 
 - (void)dealloc {
@@ -170,22 +185,22 @@ static UIImage *downscaledCoverImage(UIImage *img) {
         if (completion) completion(cachedImg);
         return;
     }
-    
+
     // 2. Disk Cache en segundo plano
     dispatch_async(self.ioQueue, ^{
         NSString *path = [self filePathForURL:urlString];
-        NSData *data = [NSData dataWithContentsOfFile:path];
-        if (data && data.length > 0) {
-            UIImage *img = [UIImage imageWithData:data];
+        NSData *diskData = [NSData dataWithContentsOfFile:path];
+        if (diskData && diskData.length > 0) {
+            UIImage *img = [UIImage imageWithData:diskData];
             if (img) {
-                [self.memCache setObject:img forKey:urlString cost:data.length];
+                [self.memCache setObject:img forKey:urlString cost:diskData.length];
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (completion) completion(img);
                 });
                 return;
             }
         }
-        
+
         // 3. Network Fetch con TLSHTTPClient
         NSString *targetURL = [[APIService sharedService] proxiedImageURL:urlString];
         NSURL *url = [NSURL URLWithString:targetURL];
@@ -195,7 +210,7 @@ static UIImage *downscaledCoverImage(UIImage *img) {
             });
             return;
         }
-        
+
         NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
         [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
         if ([url.host containsString:@"mangadex"]) {
@@ -203,7 +218,7 @@ static UIImage *downscaledCoverImage(UIImage *img) {
         } else if ([url.host containsString:@"archive.org"]) {
             [req setValue:@"https://archive.org/" forHTTPHeaderField:@"Referer"];
         }
-        
+
         [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *res, NSError *err) {
             if (d && !err && res.statusCode >= 200 && res.statusCode < 300) {
                 dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
