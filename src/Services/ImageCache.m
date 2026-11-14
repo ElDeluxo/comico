@@ -96,20 +96,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 
 - (UIImage *)imageForURL:(NSString *)urlString {
     if (!urlString || urlString.length == 0) return nil;
-    
-    UIImage *img = [self.memCache objectForKey:urlString];
-    if (img) return img;
-    
-    NSString *path = [self filePathForURL:urlString];
-    NSData *data = [NSData dataWithContentsOfFile:path];
-    if (data) {
-        img = [UIImage imageWithData:data];
-        if (img) {
-            [self.memCache setObject:img forKey:urlString cost:data.length];
-            return img;
-        }
-    }
-    return nil;
+    return [self.memCache objectForKey:urlString];
 }
 
 - (void)setImage:(UIImage *)image forURL:(NSString *)urlString {
@@ -130,18 +117,18 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         return;
     }
     
-    // 1. RAM Cache
+    // 1. RAM Cache (Instantáneo, en hilo principal)
     UIImage *cachedImg = [self.memCache objectForKey:urlString];
     if (cachedImg) {
         if (completion) completion(cachedImg);
         return;
     }
     
-    // 2. Disk Cache
+    // 2. Disk Cache en segundo plano
     dispatch_async(self.ioQueue, ^{
         NSString *path = [self filePathForURL:urlString];
         NSData *data = [NSData dataWithContentsOfFile:path];
-        if (data) {
+        if (data && data.length > 0) {
             UIImage *img = [UIImage imageWithData:data];
             if (img) {
                 [self.memCache setObject:img forKey:urlString cost:data.length];
@@ -152,7 +139,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
             }
         }
         
-        // 3. Network Fetch con User-Agent
+        // 3. Network Fetch con TLSHTTPClient
         NSString *targetURL = [[APIService sharedService] proxiedImageURL:urlString];
         NSURL *url = [NSURL URLWithString:targetURL];
         if (!url) {
@@ -164,18 +151,33 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         
         NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
         [req setValue:@"Comico/1.0 (iOS 9.0; iPad; +https://github.com/ElDeluxo/comico)" forHTTPHeaderField:@"User-Agent"];
+        if ([url.host containsString:@"mangadex"]) {
+            [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
+        } else if ([url.host containsString:@"archive.org"]) {
+            [req setValue:@"https://archive.org/" forHTTPHeaderField:@"Referer"];
+        }
         
         [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *res, NSError *err) {
-            if (d && !err) {
-                UIImage *downloaded = [UIImage imageWithData:d];
-                if (downloaded) {
-                    [self.memCache setObject:downloaded forKey:urlString cost:d.length];
-                    [d writeToFile:path atomically:YES];
-                    if (completion) completion(downloaded);
-                    return;
-                }
+            if (d && !err && res.statusCode >= 200 && res.statusCode < 300) {
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                    UIImage *downloaded = [UIImage imageWithData:d];
+                    if (downloaded) {
+                        [self.memCache setObject:downloaded forKey:urlString cost:d.length];
+                        [d writeToFile:path atomically:YES];
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            if (completion) completion(downloaded);
+                        });
+                        return;
+                    }
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (completion) completion(nil);
+                    });
+                });
+                return;
             }
-            if (completion) completion(nil);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (completion) completion(nil);
+            });
         }];
     });
 }

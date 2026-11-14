@@ -13,10 +13,13 @@ void ComicoLog(NSString *format, ...) {
     NSString *msg = [[NSString alloc] initWithFormat:format arguments:args];
     va_end(args);
     
-    NSDateFormatter *df = [[NSDateFormatter alloc] init];
-    [df setDateFormat:@"HH:mm:ss.SSS"];
-    NSString *timestamp = [df stringFromDate:[NSDate date]];
-    NSString *entry = [NSString stringWithFormat:@"[%@] %@", timestamp, msg];
+    time_t rawtime;
+    time(&rawtime);
+    struct tm timeinfo;
+    localtime_r(&rawtime, &timeinfo);
+    char timeBuf[16];
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &timeinfo);
+    NSString *entry = [NSString stringWithFormat:@"[%s] %@", timeBuf, msg];
     
     NSLog(@"%@", entry);
     

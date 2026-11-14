@@ -1,6 +1,10 @@
 #import "TLSHTTPClient.h"
 #import "DebugViewController.h"
 
+#import <pthread.h>
+#import <sys/socket.h>
+#import <netinet/in.h>
+
 // mbedTLS Headers
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
@@ -20,6 +24,15 @@ static mbedtls_x509_crt s_ca_chain;
 static mbedtls_entropy_context s_entropy;
 static mbedtls_ctr_drbg_context s_ctr_drbg;
 static BOOL s_initialized = NO;
+static pthread_mutex_t s_rng_mutex = PTHREAD_MUTEX_INITIALIZER;
+static dispatch_semaphore_t s_connection_semaphore = NULL;
+
+static int safe_drbg_random(void *p_rng, unsigned char *output, size_t output_len) {
+    pthread_mutex_lock(&s_rng_mutex);
+    int ret = mbedtls_ctr_drbg_random(p_rng, output, output_len);
+    pthread_mutex_unlock(&s_rng_mutex);
+    return ret;
+}
 
 + (instancetype)sharedClient {
     static TLSHTTPClient *instance = nil;
@@ -34,6 +47,10 @@ static BOOL s_initialized = NO;
     self = [super init];
     if (self) {
         _workQueue = dispatch_queue_create("com.comico.tlshttpclient.queue", DISPATCH_QUEUE_CONCURRENT);
+        static dispatch_once_t semToken;
+        dispatch_once(&semToken, ^{
+            s_connection_semaphore = dispatch_semaphore_create(4);
+        });
         [self initializeTLSIfNeeded];
     }
     return self;
@@ -103,7 +120,13 @@ static BOOL s_initialized = NO;
 - (void)performRequest:(NSURLRequest *)request
             completion:(void(^)(NSData *data, NSHTTPURLResponse *response, NSError *error))completion {
     dispatch_async(self.workQueue, ^{
+        if (s_connection_semaphore) {
+            dispatch_semaphore_wait(s_connection_semaphore, DISPATCH_TIME_FOREVER);
+        }
         [self executeRequest:request redirectCount:0 completion:^(NSData *d, NSHTTPURLResponse *r, NSError *e) {
+            if (s_connection_semaphore) {
+                dispatch_semaphore_signal(s_connection_semaphore);
+            }
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (completion) {
                     completion(d, r, e);
@@ -153,6 +176,13 @@ static BOOL s_initialized = NO;
         return;
     }
     
+    // Timeout para socket de 10 segundos
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(server_fd.fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
+    setsockopt(server_fd.fd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
+    
     // Estructuras TLS si es HTTPS
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
@@ -172,7 +202,7 @@ static BOOL s_initialized = NO;
             return;
         }
         
-        mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &s_ctr_drbg);
+        mbedtls_ssl_conf_rng(&conf, safe_drbg_random, &s_ctr_drbg);
         mbedtls_ssl_conf_ca_chain(&conf, &s_ca_chain, NULL);
         
         // Authmode opcional para máxima compatibilidad con CDNs y saltar fechas desfasadas en iPads viejos
@@ -261,7 +291,11 @@ static BOOL s_initialized = NO;
     
     // Leer respuesta completa
     NSMutableData *responseRaw = [NSMutableData data];
-    unsigned char readBuf[4096];
+    unsigned char readBuf[8192];
+    NSInteger headerLength = -1;
+    NSInteger expectedBodyLength = -1;
+    BOOL isChunked = NO;
+    
     while (YES) {
         if (isHTTPS) {
             ret = mbedtls_ssl_read(&ssl, readBuf, sizeof(readBuf));
@@ -271,12 +305,62 @@ static BOOL s_initialized = NO;
         
         if (ret > 0) {
             [responseRaw appendBytes:readBuf length:ret];
+            
+            // 1. Detectar delimitador de cabeceras si aún no lo tenemos
+            if (headerLength < 0) {
+                NSData *delim = [@"\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding];
+                NSRange delimRange = [responseRaw rangeOfData:delim options:0 range:NSMakeRange(0, responseRaw.length)];
+                if (delimRange.location == NSNotFound) {
+                    delim = [@"\n\n" dataUsingEncoding:NSUTF8StringEncoding];
+                    delimRange = [responseRaw rangeOfData:delim options:0 range:NSMakeRange(0, responseRaw.length)];
+                }
+                
+                if (delimRange.location != NSNotFound) {
+                    headerLength = delimRange.location + delimRange.length;
+                    
+                    NSData *hData = [responseRaw subdataWithRange:NSMakeRange(0, delimRange.location)];
+                    NSString *hStr = [[NSString alloc] initWithData:hData encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:hData encoding:NSISOLatin1StringEncoding];
+                    NSArray *lines = [hStr componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+                    for (NSString *line in lines) {
+                        NSString *trimmed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                        NSRange colon = [trimmed rangeOfString:@":"];
+                        if (colon.location != NSNotFound) {
+                            NSString *key = [[trimmed substringToIndex:colon.location] lowercaseString];
+                            NSString *val = [[trimmed substringFromIndex:colon.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                            if ([key isEqualToString:@"content-length"]) {
+                                expectedBodyLength = [val integerValue];
+                            } else if ([key isEqualToString:@"transfer-encoding"]) {
+                                if ([val.lowercaseString containsString:@"chunked"]) {
+                                    isChunked = YES;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 2. Si ya recibimos cabeceras y Content-Length: comprobar si el cuerpo está completo
+            if (headerLength >= 0 && expectedBodyLength >= 0) {
+                NSInteger currentBodyLength = responseRaw.length - headerLength;
+                if (currentBodyLength >= expectedBodyLength) {
+                    break; // ¡Cuerpo completo recibido! Salir de inmediato
+                }
+            }
+            
+            // 3. Si es Transfer-Encoding: chunked: comprobar si llegó el chunk terminal "0\r\n\r\n"
+            if (headerLength >= 0 && isChunked) {
+                NSData *endChunk = [@"\r\n0\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding];
+                NSRange endR = [responseRaw rangeOfData:endChunk options:NSBackwardsSearch range:NSMakeRange(headerLength, responseRaw.length - headerLength)];
+                if (endR.location != NSNotFound && (endR.location + endR.length == responseRaw.length)) {
+                    break; // ¡Chunk final recibido! Salir de inmediato
+                }
+            }
         } else if (ret == 0 || ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
             break; // Servidor cerró conexión limpia
         } else if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
             continue;
         } else {
-            break; // Error o fin
+            break; // Error o timeout
         }
     }
     

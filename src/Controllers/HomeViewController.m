@@ -302,6 +302,7 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
 
 - (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)collectionViewLayout sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat totalWidth = collectionView.bounds.size.width - 24;
+    if (totalWidth < 100) totalWidth = 744.0;
     
     int columns = 2;
     if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
