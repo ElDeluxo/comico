@@ -56,14 +56,6 @@ static NSString *const kChapterCellId = @"ChapterCell";
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     self.tableView.frame = self.view.bounds;
-    
-    UIView *header = self.tableView.tableHeaderView;
-    if (header && header.frame.size.width != self.tableView.bounds.size.width) {
-        CGRect f = header.frame;
-        f.size.width = self.tableView.bounds.size.width;
-        header.frame = f;
-        self.tableView.tableHeaderView = header;
-    }
 }
 
 - (void)setupTableView {
@@ -240,28 +232,33 @@ static NSString *const kChapterCellId = @"ChapterCell";
         return;
     }
     
+    __weak typeof(self) weakSelf = self;
     [[APIService sharedService] fetchChaptersForComicId:comicId page:0 completion:^(NSArray<Chapter *> *chapters, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
+            typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
             @try {
-                [self.spinner stopAnimating];
+                [strongSelf.spinner stopAnimating];
                 
                 if (error) {
-                    self.noChaptersLabel.text = @"Error al cargar capítulos.";
-                    self.noChaptersLabel.hidden = NO;
+                    strongSelf.noChaptersLabel.text = @"Error al cargar capítulos.";
+                    strongSelf.noChaptersLabel.hidden = NO;
                     return;
                 }
                 
-                [self.chapters removeAllObjects];
-                if (chapters && [chapters isKindOfClass:[NSArray class]] && chapters.count > 0) {
-                    for (id ch in chapters) {
-                        if ([ch isKindOfClass:[Chapter class]]) {
-                            [self.chapters addObject:ch];
+                @autoreleasepool {
+                    [strongSelf.chapters removeAllObjects];
+                    if (chapters && [chapters isKindOfClass:[NSArray class]] && chapters.count > 0) {
+                        for (id ch in chapters) {
+                            if ([ch isKindOfClass:[Chapter class]]) {
+                                [strongSelf.chapters addObject:ch];
+                            }
                         }
                     }
                 }
                 
-                self.noChaptersLabel.hidden = (self.chapters.count > 0);
-                [self.tableView reloadData];
+                strongSelf.noChaptersLabel.hidden = (strongSelf.chapters.count > 0);
+                [strongSelf.tableView reloadData];
             } @catch (NSException *ex) {
                 ComicoLog(@"❌ Error procesando capítulos: %@", ex.reason);
             }

@@ -373,6 +373,52 @@ static NSString *const kBaseURL = @"https://api.mangadex.org";
 - (void)fetchPagesForChapterId:(NSString *)chapterId
                     completion:(void (^)(NSArray<NSString *> *pageURLs,
                                          NSError *error))completion {
+  if (!chapterId || ![chapterId isKindOfClass:[NSString class]]) {
+    if (completion) completion(@[], nil);
+    return;
+  }
+
+  // 1. Cómics Occidentales de Internet Archive
+  if ([chapterId hasPrefix:@"ia__"]) {
+    NSArray<NSString *> *parts = [chapterId componentsSeparatedByString:@"__"];
+    if (parts.count >= 5 && [parts[2] isEqualToString:@"range"]) {
+      NSString *ident = parts[1];
+      NSInteger start = [parts[3] integerValue];
+      NSInteger count = [parts[4] integerValue];
+      NSMutableArray<NSString *> *urls = [NSMutableArray array];
+      for (NSInteger p = 0; p < count; p++) {
+        NSInteger actualPage = start + p;
+        NSString *pUrl = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)actualPage];
+        [urls addObject:[self proxiedImageURL:pUrl]];
+      }
+      completion(urls, nil);
+      return;
+    } else if (parts.count >= 5 && [parts[2] isEqualToString:@"sub"]) {
+      NSString *ident = parts[1];
+      NSString *subPrefix = [parts[3] stringByRemovingPercentEncoding] ?: parts[3];
+      NSInteger count = [parts[4] integerValue];
+      if (count <= 0) count = 35;
+      NSMutableArray<NSString *> *urls = [NSMutableArray array];
+      for (NSInteger p = 0; p < count; p++) {
+        NSString *encodedPrefix = [subPrefix stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLPathAllowedCharacterSet]];
+        NSString *pUrl = [NSString stringWithFormat:@"https://archive.org/download/%@/%@/page/n%ld.jpg", ident, encodedPrefix, (long)p];
+        [urls addObject:[self proxiedImageURL:pUrl]];
+      }
+      completion(urls, nil);
+      return;
+    } else if (parts.count >= 2) {
+      NSString *ident = parts[1];
+      NSMutableArray<NSString *> *urls = [NSMutableArray array];
+      for (NSInteger p = 0; p < 35; p++) {
+        NSString *pUrl = [NSString stringWithFormat:@"https://archive.org/download/%@/page/n%ld.jpg", ident, (long)p];
+        [urls addObject:[self proxiedImageURL:pUrl]];
+      }
+      completion(urls, nil);
+      return;
+    }
+  }
+
+  // 2. Mangas de MangaDex
   NSString *urlStr =
       [NSString stringWithFormat:@"%@/at-home/server/%@",
                                  [self effectiveBaseURL], chapterId];

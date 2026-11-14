@@ -28,10 +28,12 @@ static NSString *const kFavoritesKey = @"comico_saved_favorites";
 }
 
 - (BOOL)isFavorite:(NSString *)comicId {
-    if (!comicId) return NO;
+    if (!comicId || ![comicId isKindOfClass:[NSString class]]) return NO;
     NSArray *rawList = [[NSUserDefaults standardUserDefaults] arrayForKey:kFavoritesKey];
     for (NSDictionary *dict in rawList) {
-        if ([dict[@"id"] isEqualToString:comicId]) {
+        if (![dict isKindOfClass:[NSDictionary class]]) continue;
+        id dId = dict[@"id"];
+        if ([dId isKindOfClass:[NSString class]] && [dId isEqualToString:comicId]) {
             return YES;
         }
     }
@@ -51,13 +53,15 @@ static NSString *const kFavoritesKey = @"comico_saved_favorites";
 }
 
 - (void)removeFavorite:(NSString *)comicId {
-    if (!comicId) return;
+    if (!comicId || ![comicId isKindOfClass:[NSString class]]) return;
     NSArray *rawList = [[NSUserDefaults standardUserDefaults] arrayForKey:kFavoritesKey];
     if (!rawList) return;
     
     NSMutableArray *updated = [NSMutableArray array];
     for (NSDictionary *dict in rawList) {
-        if (![dict[@"id"] isEqualToString:comicId]) {
+        if (![dict isKindOfClass:[NSDictionary class]]) continue;
+        id dId = dict[@"id"];
+        if (![dId isKindOfClass:[NSString class]] || ![dId isEqualToString:comicId]) {
             [updated addObject:dict];
         }
     }

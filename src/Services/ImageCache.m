@@ -3,26 +3,33 @@
 #import "DebugViewController.h"
 #import "TLSHTTPClient.h"
 #import <CommonCrypto/CommonDigest.h>
+#import <ImageIO/ImageIO.h>
 
-static UIImage *downscaledCoverImage(UIImage *img) {
-  if (!img)
+static UIImage *downsampleImageData(NSData *data, CGFloat maxDimension) {
+  if (!data || data.length == 0)
     return nil;
-  CGSize orig = img.size;
-  CGFloat maxDim = 320.0;
-  if (orig.width <= maxDim && orig.height <= maxDim)
-    return img;
 
-  CGFloat ratio = MIN(maxDim / orig.width, maxDim / orig.height);
-  CGSize newSize =
-      CGSizeMake(floor(orig.width * ratio), floor(orig.height * ratio));
-  if (newSize.width < 1 || newSize.height < 1)
-    return img;
+  NSDictionary *srcOpts = @{(id)kCGImageSourceShouldCache : @NO};
+  CGImageSourceRef src = CGImageSourceCreateWithData(
+      (__bridge CFDataRef)data, (__bridge CFDictionaryRef)srcOpts);
+  if (!src)
+    return nil;
 
-  UIGraphicsBeginImageContextWithOptions(newSize, YES, 1.0);
-  [img drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
-  UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
-  UIGraphicsEndImageContext();
-  return scaled ?: img;
+  NSDictionary *thumbOpts = @{
+    (id)kCGImageSourceCreateThumbnailFromImageAlways : @YES,
+    (id)kCGImageSourceShouldCacheImmediately : @YES,
+    (id)kCGImageSourceCreateThumbnailWithTransform : @YES,
+    (id)kCGImageSourceThumbnailMaxPixelSize : @(maxDimension)
+  };
+
+  CGImageRef thumb = CGImageSourceCreateThumbnailAtIndex(
+      src, 0, (__bridge CFDictionaryRef)thumbOpts);
+  CFRelease(src);
+  if (!thumb)
+    return nil;
+  UIImage *img = [UIImage imageWithCGImage:thumb];
+  CGImageRelease(thumb);
+  return img;
 }
 
 @interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
@@ -151,7 +158,7 @@ static UIImage *downscaledCoverImage(UIImage *img) {
   NSString *path = [self filePathForURL:urlString];
   NSData *data = [NSData dataWithContentsOfFile:path];
   if (data) {
-    img = [UIImage imageWithData:data];
+    img = downsampleImageData(data, 320.0);
     if (img) {
       [self.memCache setObject:img forKey:urlString cost:data.length];
       return img;
@@ -222,8 +229,7 @@ static UIImage *downscaledCoverImage(UIImage *img) {
         [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *res, NSError *err) {
             if (d && !err && res.statusCode >= 200 && res.statusCode < 300) {
                 dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                    UIImage *raw = [UIImage imageWithData:d];
-                    UIImage *downloaded = downscaledCoverImage(raw);
+                    UIImage *downloaded = downsampleImageData(d, 320.0);
                     if (downloaded) {
                         [self.memCache setObject:downloaded forKey:urlString cost:d.length];
                         [d writeToFile:path atomically:YES];

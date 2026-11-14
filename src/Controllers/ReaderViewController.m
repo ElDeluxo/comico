@@ -1,6 +1,29 @@
 #import "ReaderViewController.h"
 #import "APIService.h"
 #import "TLSHTTPClient.h"
+#import <ImageIO/ImageIO.h>
+
+static UIImage *downsampleImageData(NSData *data, CGFloat maxDimension) {
+    if (!data || data.length == 0) return nil;
+    
+    NSDictionary *srcOpts = @{(id)kCGImageSourceShouldCache: @NO};
+    CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)data, (__bridge CFDictionaryRef)srcOpts);
+    if (!src) return nil;
+    
+    NSDictionary *thumbOpts = @{
+        (id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+        (id)kCGImageSourceShouldCacheImmediately: @YES,
+        (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
+        (id)kCGImageSourceThumbnailMaxPixelSize: @(maxDimension)
+    };
+    
+    CGImageRef thumb = CGImageSourceCreateThumbnailAtIndex(src, 0, (__bridge CFDictionaryRef)thumbOpts);
+    CFRelease(src);
+    if (!thumb) return nil;
+    UIImage *img = [UIImage imageWithCGImage:thumb];
+    CGImageRelease(thumb);
+    return img;
+}
 
 @interface ReaderViewController () <UIScrollViewDelegate>
 
@@ -162,6 +185,22 @@
     }];
 }
 
+- (void)dealloc {
+    self.pageImageView.image = nil;
+    [self.pageCache removeAllObjects];
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    @synchronized (self.pageCache) {
+        for (NSNumber *key in [self.pageCache.allKeys copy]) {
+            if ([key intValue] != self.currentPage) {
+                [self.pageCache removeObjectForKey:key];
+            }
+        }
+    }
+}
+
 - (void)renderCurrentPage {
     if (self.totalPages > 0) {
         self.pageLabel.text = [NSString stringWithFormat:@"%d / %d", self.currentPage + 1, self.totalPages];
@@ -208,35 +247,36 @@
         [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
     }
     
+    __weak typeof(self) weakSelf = self;
     [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
+            typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            
             if (!error && data.length > 0) {
-                UIImage *img = [UIImage imageWithData:data];
+                // Sub-muestreo inteligente con ImageIO a máx 1280px para evitar OOM Jetsam en iOS 9
+                UIImage *img = downsampleImageData(data, 1280.0);
                 if (img) {
-                    // Limitar memoria: purgar páginas lejanas para evitar Jetsam OOM en 512MB RAM
-                    for (NSNumber *key in [self.pageCache.allKeys copy]) {
-                        if (abs(key.intValue - requestedIndex) > 1) {
-                            [self.pageCache removeObjectForKey:key];
-                        }
-                    }
-                    self.pageCache[@(requestedIndex)] = img;
-                    if (self.currentPage == requestedIndex) {
-                        self.pageImageView.image = img;
-                        [self.spinner stopAnimating];
+                    // Purgar caché para mantener sólo la página activa y liberar RAM al instante
+                    [strongSelf.pageCache removeAllObjects];
+                    strongSelf.pageCache[@(requestedIndex)] = img;
+                    if (strongSelf.currentPage == requestedIndex) {
+                        strongSelf.pageImageView.image = img;
+                        [strongSelf.spinner stopAnimating];
                     }
                 }
             } else {
-                if (self.currentPage == requestedIndex) {
-                    [self.spinner stopAnimating];
+                if (strongSelf.currentPage == requestedIndex) {
+                    [strongSelf.spinner stopAnimating];
                 }
             }
-            [self prefetchSurroundingPages];
+            [strongSelf prefetchSurroundingPages];
         });
     }];
 }
 
 - (void)prefetchSurroundingPages {
-    // Precargar página siguiente en segundo plano
+    // Precargar únicamente la siguiente página en segundo plano
     int nextIdx = self.currentPage + 1;
     if (nextIdx < self.totalPages && !self.pageCache[@(nextIdx)]) {
         NSString *nextUrlStr = self.pageURLs[nextIdx];
@@ -249,24 +289,22 @@
             } else {
                 [req setValue:@"https://mangadex.org/" forHTTPHeaderField:@"Referer"];
             }
+            __weak typeof(self) weakSelf = self;
             [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *r, NSError *e) {
                 if (!e && d.length > 0) {
-                    UIImage *img = [UIImage imageWithData:d];
-                    if (img) {
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            self.pageCache[@(nextIdx)] = img;
-                        });
-                    }
+                    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                        UIImage *img = downsampleImageData(d, 1280.0);
+                        if (img) {
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                typeof(weakSelf) strongSelf = weakSelf;
+                                if (strongSelf) {
+                                    strongSelf.pageCache[@(nextIdx)] = img;
+                                }
+                            });
+                        }
+                    });
                 }
             }];
-        }
-    }
-    
-    // Limpiar páginas lejanas de la caché de RAM para evitar que iOS 9 mate el proceso por memoria (OOM Jetsam)
-    for (NSNumber *key in [self.pageCache allKeys]) {
-        int idx = [key intValue];
-        if (abs(idx - self.currentPage) > 1) {
-            [self.pageCache removeObjectForKey:key];
         }
     }
 }
