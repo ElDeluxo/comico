@@ -21,6 +21,9 @@
 		A1B2C3D400000017 /* FavoritesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000018 /* FavoritesViewController.swift */; };
 		A1B2C3D400000019 /* MainTabBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000001A /* MainTabBarController.swift */; };
 		A1B2C3D40000001B /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000001C /* Colors.swift */; };
+		A1B2C3D400000025 /* LocalComic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000024 /* LocalComic.swift */; };
+		A1B2C3D400000027 /* LocalComicsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000026 /* LocalComicsViewController.swift */; };
+		A1B2C3D400000029 /* LocalComicReaderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000028 /* LocalComicReaderViewController.swift */; };
 		A1B2C3D40000001D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000001E /* Assets.xcassets */; };
 		A1B2C3D40000001F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000020 /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
@@ -40,6 +43,9 @@
 		A1B2C3D400000018 /* FavoritesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D40000001A /* MainTabBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabBarController.swift; sourceTree = "<group>"; };
 		A1B2C3D40000001C /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
+		A1B2C3D400000024 /* LocalComic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalComic.swift; sourceTree = "<group>"; };
+		A1B2C3D400000026 /* LocalComicsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalComicsViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D400000028 /* LocalComicReaderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalComicReaderViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D40000001E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D400000021 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1B2C3D400000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -94,6 +100,7 @@
 			children = (
 				A1B2C3D400000004 /* Comic.swift */,
 				A1B2C3D400000006 /* APIResponse.swift */,
+				A1B2C3D400000024 /* LocalComic.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -132,6 +139,8 @@
 				A1B2C3D400000016 /* ReaderViewController.swift */,
 				A1B2C3D400000018 /* FavoritesViewController.swift */,
 				A1B2C3D40000001A /* MainTabBarController.swift */,
+				A1B2C3D400000026 /* LocalComicsViewController.swift */,
+				A1B2C3D400000028 /* LocalComicReaderViewController.swift */,
 			);
 			path = Controllers;
 			sourceTree = "<group>";
@@ -228,6 +237,9 @@
 				A1B2C3D400000017 /* FavoritesViewController.swift in Sources */,
 				A1B2C3D400000019 /* MainTabBarController.swift in Sources */,
 				A1B2C3D40000001B /* Colors.swift in Sources */,
+				A1B2C3D400000025 /* LocalComic.swift in Sources */,
+				A1B2C3D400000027 /* LocalComicsViewController.swift in Sources */,
+				A1B2C3D400000029 /* LocalComicReaderViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,7 +308,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -351,7 +363,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -371,7 +383,7 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Manual;
 				INFOPLIST_FILE = Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -393,7 +405,7 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Manual;
 				INFOPLIST_FILE = Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

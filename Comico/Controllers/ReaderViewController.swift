@@ -220,11 +220,15 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
                 switch result {
                 case .success(let pages):
                     strongSelf.pageURLs = pages.map { $0.imageURL }
-                    strongSelf.setupPages()
-                    strongSelf.updatePageIndicator()
-                    strongSelf.preloadAdjacentPages()
-                case .failure:
-                    strongSelf.showError("Failed to load pages")
+                    if strongSelf.pageURLs.isEmpty {
+                        strongSelf.showError("No pages found for this chapter")
+                    } else {
+                        strongSelf.setupPages()
+                        strongSelf.updatePageIndicator()
+                        strongSelf.preloadAdjacentPages()
+                    }
+                case .failure(let error):
+                    strongSelf.showError("Failed to load pages: \(error.localizedDescription)")
                 }
             }
         }
@@ -238,11 +242,14 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
         pageImageViews.removeAll()
 
         let pageCount = pageURLs.count
-        guard pageCount > 0 else { return }
+        guard pageCount > 0 else {
+            showError("No pages available for this chapter")
+            return
+        }
 
-        // Horizontal paging setup
-        let scrollWidth = view.bounds.width
-        let scrollHeight = pagingScrollView.bounds.height > 0 ? pagingScrollView.bounds.height : view.bounds.height - 50
+        // Use view.bounds safely - ensure layout has happened
+        let scrollWidth = view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width
+        let scrollHeight = pagingScrollView.bounds.height > 0 ? pagingScrollView.bounds.height : (view.bounds.height > 50 ? view.bounds.height - 50 : UIScreen.main.bounds.height - 50)
 
         pagingScrollView.contentSize = CGSize(width: scrollWidth * CGFloat(pageCount), height: scrollHeight)
 
@@ -278,7 +285,7 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
             pageImageViews.append(imageView)
 
-            // Vertical page
+            // Vertical page - use intrinsic content size with aspect fit, don't force aspect ratio
             let vImageView = UIImageView()
             vImageView.contentMode = .scaleAspectFit
             vImageView.backgroundColor = .black
@@ -291,7 +298,8 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
                 vImageView.topAnchor.constraint(equalTo: prevVerticalAnchor, constant: i == 0 ? 0 : 2),
                 vImageView.leadingAnchor.constraint(equalTo: verticalContentView.leadingAnchor),
                 vImageView.trailingAnchor.constraint(equalTo: verticalContentView.trailingAnchor),
-                vImageView.heightAnchor.constraint(equalTo: vImageView.widthAnchor, multiplier: 1.5)
+                // Use a reasonable default height, actual image will scale to fit
+                vImageView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
             ])
 
             if i == pageCount - 1 {
@@ -382,7 +390,8 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
     private func scrollToCurrentPage(animated: Bool) {
         if readingMode == .horizontal {
-            let x = CGFloat(currentPageIndex) * view.bounds.width
+            let pageWidth = pagingScrollView.bounds.width > 0 ? pagingScrollView.bounds.width : view.bounds.width
+            let x = CGFloat(currentPageIndex) * pageWidth
             pagingScrollView.setContentOffset(CGPoint(x: x, y: 0), animated: animated)
         }
         updatePageIndicator()
@@ -470,8 +479,9 @@ class ReaderViewController: UIViewController, UIScrollViewDelegate {
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         if scrollView === pagingScrollView {
-            let page = Int(scrollView.contentOffset.x / view.bounds.width)
-            if page != currentPageIndex {
+            let pageWidth = scrollView.bounds.width > 0 ? scrollView.bounds.width : view.bounds.width
+            let page = Int(scrollView.contentOffset.x / pageWidth)
+            if page != currentPageIndex && page >= 0 && page < pageURLs.count {
                 currentPageIndex = page
                 updatePageIndicator()
                 preloadAdjacentPages()

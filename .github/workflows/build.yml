@@ -1,4 +1,4 @@
-name: Build Comico Universal (iOS 9.0)
+name: Build Comico Universal & Swift (iOS 9.0)
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-universal:
     name: Build Universal IPA & DEB (armv7 + arm64)
     runs-on: ubuntu-22.04
 
@@ -145,26 +145,143 @@ jobs:
             Mangie_iPad_iOS9.deb
           retention-days: 30
 
+  build-swift:
+    name: Build Swift IPA & DEB (Xcode)
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install dpkg
+        run: brew install dpkg || true
+
+      - name: Setup Xcode
+        run: |
+          if [ -d "/Applications/Xcode_14.3.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_14.3.1.app
+          elif [ -d "/Applications/Xcode_15.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.0.1.app
+          fi
+          xcodebuild -version
+
+      - name: Build Comico.app
+        run: |
+          mkdir -p build
+          set -o pipefail
+          if xcodebuild -project Comico/Comico.xcodeproj \
+                     -scheme Comico \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build/DerivedData \
+                     build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     AD_HOC_CODE_SIGNING_ALLOWED=YES 2>&1 | tee build.log; then
+            echo "Swift build succeeded!"
+          else
+            echo "Swift build failed. Printing log..."
+            tail -n 100 build.log
+            exit 1
+          fi
+
+      - name: Set iOS 9 Compatibility in Info.plist & Binary
+        run: |
+          APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
+          echo "Found app at: $APP_PATH"
+
+          # Force MinimumOSVersion to 9.0 in Info.plist
+          /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion 9.0" "$APP_PATH/Info.plist" || \
+          /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string 9.0" "$APP_PATH/Info.plist"
+
+          echo "Verified Info.plist MinimumOSVersion:"
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP_PATH/Info.plist"
+
+      - name: Package Swift IPA
+        run: |
+          APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
+          echo "Packaging Swift app at: $APP_PATH"
+          mkdir -p ipa-swift/Payload
+          cp -r "$APP_PATH" ipa-swift/Payload/
+          cd ipa-swift
+          zip -r ../Comico_Swift.ipa Payload
+          cd ..
+          ls -lh Comico_Swift.ipa
+
+      - name: Package Swift DEB
+        run: |
+          APP_PATH=$(find build/DerivedData -name "Comico.app" -type d | head -n 1)
+          mkdir -p deb-swift/Applications
+          cp -r "$APP_PATH" deb-swift/Applications/
+          mkdir -p deb-swift/DEBIAN
+          cp packaging/control deb-swift/DEBIAN/control
+          cp packaging/postinst deb-swift/DEBIAN/postinst
+          chmod 755 deb-swift/DEBIAN/postinst
+          dpkg-deb --build --root-owner-group deb-swift Comico_Swift.deb
+          ls -lh Comico_Swift.deb
+
+      - name: Upload Swift Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Comico-Swift-Packages
+          path: |
+            Comico_Swift.ipa
+            Comico_Swift.deb
+          retention-days: 30
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-universal, build-swift]
+    runs-on: ubuntu-latest
+    if: always() && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main')
+    steps:
+      - name: Download Universal Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Comico-iOS9-Universal
+          path: release-files
+        continue-on-error: true
+
+      - name: Download Swift Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Comico-Swift-Packages
+          path: release-files
+        continue-on-error: true
+
+      - name: Inspect Release Files
+        run: |
+          ls -la release-files/
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.3.6' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Comico & Mangie {0}', github.ref_name) || 'Comico & Mangie v1.3.6 (iOS 9.0+ Universal)' }}
-          files: |
-            Comico_Universal_iOS9.ipa
-            Comico_Universal_iOS9.deb
-            Mangie_iPad_iOS9.ipa
-            Mangie_iPad_iOS9.deb
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.3.7' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Comico & Mangie {0}', github.ref_name) || 'Comico & Mangie v1.3.7 (iOS 9.0+ Universal & Swift Edition)' }}
+          files: release-files/*
           body: |
-            ### Comico Universal v1.3.6 & Mangie iPad Edition para iOS 9
+            ### Comico v1.3.7 & Mangie iPad Edition para iOS 9
 
-            #### 🛠️ Corrección Crítica de Cierre al Tocar Cómic y Optimización (v1.3.6):
-            - **Fin al Cierre al Tocar un Cómic (Reemplazo de UITextView):** Se reemplazó el `UITextView` de la descripción del cómic por un `UILabel` ligero. En iOS 9, colocar un `UITextView` dentro de `tableHeaderView` provocaba un bucle infinito de TextKit y cierre instantáneo de la app al entrar al detalle.
-            - **Blindaje Total contra NSNull y Tipos Incompatibles:** Validación estricta con `isKindOfClass:[NSString class]` en todos los campos (`title`, `author`, `status`, `comicDescription`, `tags`, `language`, `chapterNumber`), evitando excepciones por selectores no reconocidos (`unrecognized selector`) provenientes de respuestas JSON.
-            - **Prevención de Doble Toque:** Protección ante toques rápidos repetidos en la cuadrícula y lista de capítulos para evitar animaciones concurrentes de `UINavigationController` en iOS 9.
-            - **Manejador Global de Excepciones (Crash Logger):** Se implementó un registrador de excepciones fatal (`NSSetUncaughtExceptionHandler`) que guarda el informe en disco y lo proyecta directamente en la pestaña **Diagnóstico**.
+            #### 📚 Novedades de la versión v1.3.7:
+            - **Cómics Occidentales / Soporte de Archivos Locales (Swift Edition):**
+              - Nueva pestaña **"Western"** dedicada a la lectura de cómics occidentales y archivos locales.
+              - Soporte para formatos `.cbz`, `.cbr`, `.pdf` y `.epub`.
+              - Integración con el selector de documentos (`UIDocumentPicker`) para importar cómics desde la app Archivos, iCloud Drive o almacenamiento local.
+              - Detección automática y escaneo de cómics en el directorio `Documents/Comics`.
+              - Apertura directa de archivos de cómics desde otras aplicaciones (AirDrop, Safari, gestores de archivos).
+              - Lector de cómics locales (`LocalComicReaderViewController`) con navegación horizontal página a página y modo vertical alternable.
+            - **Mejoras en el Lector:**
+              - Dimensionamiento adaptativo y seguro según los límites reales de la pantalla.
+              - Mejor reporte de errores al cargar capítulos.
+            - **Edición Universal iOS 9 (Theos):**
+              - Compatibilidad universal con procesadores `armv7` (32-bit) y `arm64` (64-bit).
+              - Motor TLS 1.3 mbedTLS para conectividad moderna en iOS 9.3 sin requerir proxies externos.
+              - Corrección crítica de rendimiento en TextKit y sanitización ante valores nulos.
 
-            #### 📦 Archivos para Descargar e Instalar:
-            - **`Comico_Universal_iOS9.deb`** *(Recomendado para Jailbreak)*: Instalar con Filza File Manager o Cydia. No caduca.
-            - **`Comico_Universal_iOS9.ipa`**: Instalar con Sideloadly / AltStore desde PC.
+            #### 📦 Paquetes disponibles:
+            - **`Comico_Swift.ipa`**: Nueva edición en Swift con soporte para cómics locales (CBZ, CBR, PDF, EPUB).
+            - **`Comico_Swift.deb`**: Edición Swift empaquetada para Jailbreak.
+            - **`Comico_Universal_iOS9.deb`**: Edición Universal C/Objective-C recomendada para dispositivos 32-bit iOS 9.
+            - **`Comico_Universal_iOS9.ipa`**: Edición Universal para Sideloadly / AltStore.
+            - **`Mangie_iPad_iOS9.deb` / `.ipa`**: Mangie iPad Edition adaptada para pantalla completa en iPad iOS 9.

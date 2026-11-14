@@ -55,9 +55,10 @@ final class ImageCache {
     // MARK: - Public API
 
     /// Carga una imagen desde cache (memoria → disco) o la descarga de la red.
+    /// También soporta rutas de archivos locales (file:// o path absoluto).
     ///
     /// - Parameters:
-    ///   - urlString: URL de la imagen como String.
+    ///   - urlString: URL de la imagen como String, o ruta de archivo local.
     ///   - completion: Closure ejecutado en el main thread con la imagen o nil en caso de error.
     func loadImage(from urlString: String, completion: @escaping (UIImage?) -> Void) {
         let cacheKey = cacheKeyForURL(urlString)
@@ -83,8 +84,46 @@ final class ImageCache {
                 return
             }
 
-            // 3. Descargar de la red
+            // 3. Verificar si es un archivo local
+            if self.isLocalFilePath(urlString) {
+                self.loadLocalImage(path: urlString, cacheKey: cacheKey, completion: completion)
+                return
+            }
+
+            // 4. Descargar de la red
             self.downloadImage(urlString: urlString, cacheKey: cacheKey, completion: completion)
+        }
+    }
+
+    /// Verifica si el string es una ruta de archivo local
+    private func isLocalFilePath(_ path: String) -> Bool {
+        return path.hasPrefix("file://") || path.hasPrefix("/") || (path as NSString).pathExtension != ""
+    }
+
+    /// Carga una imagen desde el sistema de archivos local
+    private func loadLocalImage(path: String, cacheKey: String, completion: @escaping (UIImage?) -> Void) {
+        var filePath = path
+        if path.hasPrefix("file://") {
+            filePath = (path as NSString).replacingOccurrences(of: "file://", with: "")
+        }
+
+        // Intentar cargar directamente
+        if let image = UIImage(contentsOfFile: filePath) {
+            // Guardar en memoria
+            self.memoryCache.setObject(image, forKey: cacheKey as NSString)
+
+            // Guardar en disco cache también
+            self.diskQueue.async {
+                self.saveToDisk(image: image, key: cacheKey)
+            }
+
+            DispatchQueue.main.async {
+                completion(image)
+            }
+        } else {
+            DispatchQueue.main.async {
+                completion(nil)
+            }
         }
     }
 

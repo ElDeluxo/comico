@@ -19,7 +19,78 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = MainTabBarController()
         window?.makeKeyAndVisible()
 
+        // Handle launch from URL (e.g. opening a comic file)
+        if let url = launchOptions?[.url] as? URL {
+            handleIncomingURL(url)
+        }
+
         return true
+    }
+
+    // MARK: - Open URL Handling
+
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        return handleIncomingURL(url)
+    }
+
+    func application(_ application: UIApplication, handleOpen url: URL) -> Bool {
+        return handleIncomingURL(url)
+    }
+
+    private func handleIncomingURL(_ url: URL) -> Bool {
+        // Security-scoped resource access for iOS 11+
+        let shouldStopAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if shouldStopAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        // Copiar archivo al directorio de comics de la app
+        let fileManager = FileManager.default
+        let comicsDir = LocalComicLibrary.shared.importDirectoryURL
+        let fileName = url.lastPathComponent
+        let destinationURL = comicsDir.appendingPathComponent(fileName)
+
+        var finalURL = destinationURL
+        var counter = 1
+        while fileManager.fileExists(atPath: finalURL.path) {
+            let nameWithoutExt = (fileName as NSString).deletingPathExtension
+            let ext = fileName.pathExtension
+            finalURL = comicsDir.appendingPathComponent("\(nameWithoutExt) (\(counter)).\(ext)")
+            counter += 1
+        }
+
+        do {
+            try fileManager.copyItem(at: url, to: finalURL)
+
+            // Importar a la biblioteca
+            if let comic = LocalComicLibrary.shared.importComic(from: finalURL) {
+                // Cambiar a la pestaña de Western Comics y abrir el lector
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.openComicInReader(comic)
+                }
+            }
+            return true
+        } catch {
+            print("Error importing comic from URL: \(error)")
+            return false
+        }
+    }
+
+    private func openComicInReader(_ comic: LocalComic) {
+        guard let window = window,
+              let tabBar = window.rootViewController as? UITabBarController,
+              let navControllers = tabBar.viewControllers as? [UINavigationController],
+              navControllers.count >= 2 else { return }
+
+        // Cambiar a la pestaña de Western Comics (índice 1)
+        tabBar.selectedIndex = 1
+
+        // Presentar el lector
+        let localComicsNav = navControllers[1]
+        let readerVC = LocalComicReaderViewController(comic: comic, startPage: 0)
+        localComicsNav.pushViewController(readerVC, animated: true)
     }
 
     // MARK: - Appearance
