@@ -1,5 +1,6 @@
 #import "APIService.h"
 #import "TLSHTTPClient.h"
+#import "DebugViewController.h"
 
 static NSString *const kBaseURL = @"https://api.mangadex.org";
 
