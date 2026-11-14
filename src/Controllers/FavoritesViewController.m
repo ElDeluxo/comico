@@ -2,6 +2,7 @@
 #import "ComicGridCell.h"
 #import "ComicDetailViewController.h"
 #import "FavoritesManager.h"
+#import "DebugViewController.h"
 
 @interface FavoritesViewController () <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout>
 
@@ -25,6 +26,21 @@ static NSString *const kFavCellId = @"ComicGridCell";
     self.view.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
     
     [self setupCollectionView];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleSettingsChanged:)
+                                                 name:ComicoSettingsChangedNotification
+                                               object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)handleSettingsChanged:(NSNotification *)note {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.collectionView reloadData];
+    });
 }
 
 - (void)viewWillAppear:(BOOL)animated {

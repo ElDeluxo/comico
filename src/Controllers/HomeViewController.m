@@ -2,6 +2,7 @@
 #import "ComicGridCell.h"
 #import "ComicDetailViewController.h"
 #import "APIService.h"
+#import "DebugViewController.h"
 
 @interface HomeViewController () <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UISearchBarDelegate>
 
@@ -49,7 +50,27 @@ static NSString *const kCellIdentifier = @"ComicGridCell";
     [self setupCollectionView];
     [self setupLoadingIndicator];
     
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleSettingsChanged:)
+                                                 name:ComicoSettingsChangedNotification
+                                               object:nil];
+    
     [self loadComicsResetting:YES];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self.collectionView reloadData];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)handleSettingsChanged:(NSNotification *)note {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.collectionView reloadData];
+    });
 }
 
 - (void)viewDidLayoutSubviews {

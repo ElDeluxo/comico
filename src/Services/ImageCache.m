@@ -1,7 +1,25 @@
 #import "ImageCache.h"
 #import "APIService.h"
 #import "TLSHTTPClient.h"
+#import "DebugViewController.h"
 #import <CommonCrypto/CommonDigest.h>
+
+static UIImage *downscaledCoverImage(UIImage *img) {
+    if (!img) return nil;
+    CGSize orig = img.size;
+    CGFloat maxDim = 320.0;
+    if (orig.width <= maxDim && orig.height <= maxDim) return img;
+    
+    CGFloat ratio = MIN(maxDim / orig.width, maxDim / orig.height);
+    CGSize newSize = CGSizeMake(floor(orig.width * ratio), floor(orig.height * ratio));
+    if (newSize.width < 1 || newSize.height < 1) return img;
+    
+    UIGraphicsBeginImageContextWithOptions(newSize, YES, 1.0);
+    [img drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
+    UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaled ?: img;
+}
 
 @interface ImageCache () <NSURLSessionDelegate, NSURLSessionTaskDelegate>
 @property (nonatomic, strong) NSCache *memCache;
@@ -25,8 +43,8 @@
     self = [super init];
     if (self) {
         _memCache = [[NSCache alloc] init];
-        _memCache.countLimit = 60;
-        _memCache.totalCostLimit = 20 * 1024 * 1024; // 20 MB RAM max
+        _memCache.countLimit = 20; // 20 portadas en memoria para no saturar RAM en iOS 9
+        _memCache.totalCostLimit = 10 * 1024 * 1024; // 10 MB RAM max
         
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
         _diskCachePath = [[paths firstObject] stringByAppendingPathComponent:@"ComicoImages"];
@@ -112,7 +130,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 }
 
 - (void)loadImageForURL:(NSString *)urlString completion:(void(^)(UIImage *image))completion {
-    if (!urlString || urlString.length == 0) {
+    if (!urlString || urlString.length == 0 || ComicoIsSkipThumbnailsEnabled()) {
         if (completion) completion(nil);
         return;
     }
@@ -160,7 +178,8 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *d, NSHTTPURLResponse *res, NSError *err) {
             if (d && !err && res.statusCode >= 200 && res.statusCode < 300) {
                 dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                    UIImage *downloaded = [UIImage imageWithData:d];
+                    UIImage *raw = [UIImage imageWithData:d];
+                    UIImage *downloaded = downscaledCoverImage(raw);
                     if (downloaded) {
                         [self.memCache setObject:downloaded forKey:urlString cost:d.length];
                         [d writeToFile:path atomically:YES];

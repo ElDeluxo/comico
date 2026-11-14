@@ -1,5 +1,6 @@
 #import "ComicGridCell.h"
 #import "ImageCache.h"
+#import "DebugViewController.h"
 
 @interface ComicGridCell ()
 @property (nonatomic, strong) UIImageView *coverImageView;
@@ -8,6 +9,13 @@
 @property (nonatomic, strong) UILabel *statusBadge;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, copy) NSString *currentImageURL;
+
+// Modo sin miniaturas (Tarjeta estilizada de lectura rápida)
+@property (nonatomic, strong) UIView *cardContainer;
+@property (nonatomic, strong) UILabel *cardOriginBadge;
+@property (nonatomic, strong) UILabel *cardIconLabel;
+@property (nonatomic, strong) UILabel *cardTitleLabel;
+@property (nonatomic, strong) UILabel *cardStatusBadge;
 @end
 
 @implementation ComicGridCell
@@ -19,6 +27,7 @@
         self.layer.cornerRadius = 8.0;
         self.layer.masksToBounds = YES;
         
+        // --- 1. Modo Normal con Miniatura ---
         _coverImageView = [[UIImageView alloc] initWithFrame:self.bounds];
         _coverImageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         _coverImageView.contentMode = UIViewContentModeScaleAspectFill;
@@ -52,6 +61,44 @@
         _statusBadge.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _statusBadge.font = [UIFont boldSystemFontOfSize:9.5];
         [_gradientOverlay addSubview:_statusBadge];
+        
+        // --- 2. Modo Seguro (Sin Miniatura - Tarjeta Estilizada) ---
+        _cardContainer = [[UIView alloc] initWithFrame:self.bounds];
+        _cardContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _cardContainer.layer.cornerRadius = 8.0;
+        _cardContainer.layer.masksToBounds = YES;
+        _cardContainer.hidden = YES;
+        [self.contentView addSubview:_cardContainer];
+        
+        _cardOriginBadge = [[UILabel alloc] initWithFrame:CGRectMake(8, 8, frame.size.width - 16, 20)];
+        _cardOriginBadge.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        _cardOriginBadge.font = [UIFont boldSystemFontOfSize:10.0];
+        _cardOriginBadge.textAlignment = NSTextAlignmentCenter;
+        _cardOriginBadge.layer.cornerRadius = 4.0;
+        _cardOriginBadge.layer.masksToBounds = YES;
+        [_cardContainer addSubview:_cardOriginBadge];
+        
+        _cardIconLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, frame.size.height * 0.16, frame.size.width, 36)];
+        _cardIconLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        _cardIconLabel.textAlignment = NSTextAlignmentCenter;
+        _cardIconLabel.font = [UIFont systemFontOfSize:28.0];
+        _cardIconLabel.text = @"📖";
+        [_cardContainer addSubview:_cardIconLabel];
+        
+        _cardTitleLabel = [[UILabel alloc] initWithFrame:CGRectMake(8, frame.size.height * 0.32, frame.size.width - 16, frame.size.height * 0.46)];
+        _cardTitleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _cardTitleLabel.textColor = [UIColor whiteColor];
+        _cardTitleLabel.font = [UIFont boldSystemFontOfSize:13.0];
+        _cardTitleLabel.textAlignment = NSTextAlignmentCenter;
+        _cardTitleLabel.numberOfLines = 5;
+        _cardTitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [_cardContainer addSubview:_cardTitleLabel];
+        
+        _cardStatusBadge = [[UILabel alloc] initWithFrame:CGRectMake(6, frame.size.height - 26, frame.size.width - 12, 18)];
+        _cardStatusBadge.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+        _cardStatusBadge.font = [UIFont boldSystemFontOfSize:10.0];
+        _cardStatusBadge.textAlignment = NSTextAlignmentCenter;
+        [_cardContainer addSubview:_cardStatusBadge];
     }
     return self;
 }
@@ -61,24 +108,64 @@
     self.coverImageView.image = nil;
     self.currentImageURL = nil;
     [self.spinner stopAnimating];
+    self.cardContainer.hidden = YES;
+    self.coverImageView.hidden = NO;
+    self.gradientOverlay.hidden = NO;
 }
 
 - (void)configureWithComic:(Comic *)comic {
-    self.titleLabel.text = comic.title;
-    
-    // Display Origin + Status
     NSString *origin = comic.originBadge ?: @"Cómic";
-    self.statusBadge.text = [NSString stringWithFormat:@"%@ • %@", origin, comic.status ?: @""];
+    UIColor *badgeColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.3 alpha:1.0];
+    UIColor *cardBgColor = [UIColor colorWithRed:0.14 green:0.13 blue:0.10 alpha:1.0];
+    UIColor *cardBorderColor = [UIColor colorWithRed:0.5 green:0.4 blue:0.2 alpha:0.4];
+    UIColor *originPillBg = [UIColor colorWithRed:0.40 green:0.30 blue:0.10 alpha:0.8];
     
     if ([comic.originalLanguage isEqualToString:@"en"]) {
-        self.statusBadge.textColor = [UIColor colorWithRed:0.3 green:0.75 blue:1.0 alpha:1.0]; // Cyan para cómics occidentales
+        badgeColor = [UIColor colorWithRed:0.3 green:0.75 blue:1.0 alpha:1.0]; // Cyan cómics occidentales
+        cardBgColor = [UIColor colorWithRed:0.10 green:0.13 blue:0.20 alpha:1.0];
+        cardBorderColor = [UIColor colorWithRed:0.25 green:0.45 blue:0.75 alpha:0.4];
+        originPillBg = [UIColor colorWithRed:0.15 green:0.30 blue:0.50 alpha:0.8];
     } else if ([comic.originalLanguage isEqualToString:@"ko"]) {
-        self.statusBadge.textColor = [UIColor colorWithRed:0.8 green:0.5 blue:1.0 alpha:1.0]; // Púrpura para Manhwa
+        badgeColor = [UIColor colorWithRed:0.8 green:0.5 blue:1.0 alpha:1.0]; // Púrpura Manhwa
+        cardBgColor = [UIColor colorWithRed:0.14 green:0.10 blue:0.18 alpha:1.0];
+        cardBorderColor = [UIColor colorWithRed:0.55 green:0.30 blue:0.75 alpha:0.4];
+        originPillBg = [UIColor colorWithRed:0.35 green:0.15 blue:0.50 alpha:0.8];
     } else if ([comic.originalLanguage isEqualToString:@"ja"]) {
-        self.statusBadge.textColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0]; // Coral para Manga
-    } else {
-        self.statusBadge.textColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.3 alpha:1.0]; // Ámbar para otros
+        badgeColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0]; // Coral Manga
+        cardBgColor = [UIColor colorWithRed:0.18 green:0.10 blue:0.14 alpha:1.0];
+        cardBorderColor = [UIColor colorWithRed:0.70 green:0.30 blue:0.40 alpha:0.4];
+        originPillBg = [UIColor colorWithRed:0.50 green:0.15 blue:0.25 alpha:0.8];
     }
+    
+    // Si la opción de omitir miniaturas está activada en Diagnóstico:
+    if (ComicoIsSkipThumbnailsEnabled()) {
+        self.coverImageView.hidden = YES;
+        self.gradientOverlay.hidden = YES;
+        [self.spinner stopAnimating];
+        
+        self.cardContainer.hidden = NO;
+        self.cardContainer.backgroundColor = cardBgColor;
+        self.cardContainer.layer.borderColor = cardBorderColor.CGColor;
+        self.cardContainer.layer.borderWidth = 1.0;
+        
+        self.cardOriginBadge.text = origin;
+        self.cardOriginBadge.textColor = badgeColor;
+        self.cardOriginBadge.backgroundColor = originPillBg;
+        
+        self.cardTitleLabel.text = comic.title;
+        self.cardStatusBadge.text = [NSString stringWithFormat:@"● %@", comic.status ?: @"Disponible"];
+        self.cardStatusBadge.textColor = badgeColor;
+        return;
+    }
+    
+    // Modo Normal con Portadas
+    self.cardContainer.hidden = YES;
+    self.coverImageView.hidden = NO;
+    self.gradientOverlay.hidden = NO;
+    
+    self.titleLabel.text = comic.title;
+    self.statusBadge.text = [NSString stringWithFormat:@"%@ • %@", origin, comic.status ?: @""];
+    self.statusBadge.textColor = badgeColor;
     
     if (!comic.coverURL || comic.coverURL.length == 0) {
         self.coverImageView.image = nil;

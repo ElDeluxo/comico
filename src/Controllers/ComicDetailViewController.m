@@ -3,6 +3,7 @@
 #import "APIService.h"
 #import "ImageCache.h"
 #import "FavoritesManager.h"
+#import "DebugViewController.h"
 
 @interface ComicDetailViewController () <UITableViewDataSource, UITableViewDelegate>
 
@@ -75,7 +76,18 @@ static NSString *const kChapterCellId = @"ChapterCell";
     cover.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
     [header addSubview:cover];
     
-    if (self.comic.coverURL) {
+    if (ComicoIsSkipThumbnailsEnabled()) {
+        cover.backgroundColor = [UIColor colorWithRed:0.10 green:0.13 blue:0.20 alpha:1.0];
+        cover.layer.borderColor = [UIColor colorWithRed:0.25 green:0.45 blue:0.75 alpha:0.4].CGColor;
+        cover.layer.borderWidth = 1.0;
+        
+        UILabel *iconLbl = [[UILabel alloc] initWithFrame:cover.bounds];
+        iconLbl.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        iconLbl.textAlignment = NSTextAlignmentCenter;
+        iconLbl.font = [UIFont systemFontOfSize:38.0];
+        iconLbl.text = @"📖";
+        [cover addSubview:iconLbl];
+    } else if (self.comic.coverURL) {
         [[ImageCache sharedCache] loadImageForURL:self.comic.coverURL completion:^(UIImage *img) {
             if (img) cover.image = img;
         }];
