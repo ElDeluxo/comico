@@ -110,10 +110,19 @@ static NSString *const kFavCellId = @"ComicGridCell";
 }
 
 - (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.item < self.favorites.count) {
-        Comic *comic = self.favorites[indexPath.item];
-        ComicDetailViewController *detailVC = [[ComicDetailViewController alloc] initWithComic:comic];
-        [self.navigationController pushViewController:detailVC animated:YES];
+    [collectionView deselectItemAtIndexPath:indexPath animated:NO];
+    if (self.navigationController.topViewController != self) return;
+    
+    @try {
+        if (indexPath.item < self.favorites.count) {
+            Comic *comic = self.favorites[indexPath.item];
+            NSString *cTitle = [comic.title isKindOfClass:[NSString class]] ? comic.title : @"Cómic";
+            ComicoLog(@"📖 Abriendo favorito: %@", cTitle);
+            ComicDetailViewController *detailVC = [[ComicDetailViewController alloc] initWithComic:comic];
+            [self.navigationController pushViewController:detailVC animated:YES];
+        }
+    } @catch (NSException *ex) {
+        ComicoLog(@"❌ Excepción al abrir favorito: %@", ex.reason);
     }
 }
 

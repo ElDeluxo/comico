@@ -1,9 +1,23 @@
 #import "AppDelegate.h"
 #import "MainTabBarController.h"
 
+static void ComicoUncaughtExceptionHandler(NSException *exception) {
+    NSString *report = [NSString stringWithFormat:@"[CRASH] %@: %@\n%@",
+                        exception.name, exception.reason,
+                        [exception.callStackSymbols componentsJoinedByString:@"\n"]];
+    NSLog(@"%@", report);
+    
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *docDir = [paths firstObject];
+    NSString *crashFile = [docDir stringByAppendingPathComponent:@"crash_log.txt"];
+    [report writeToFile:crashFile atomically:YES encoding:NSUTF8StringEncoding error:nil];
+}
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    NSSetUncaughtExceptionHandler(&ComicoUncaughtExceptionHandler);
+    
     self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     self.window.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.12 alpha:1.0];
     

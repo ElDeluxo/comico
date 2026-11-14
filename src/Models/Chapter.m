@@ -14,12 +14,14 @@
         return nil;
     }
     
-    Chapter *ch = [[Chapter alloc] init];
-    ch.chapterId = dict[@"id"];
-    if (!ch.chapterId || ch.chapterId.length == 0) return nil;
+    id cId = dict[@"id"];
+    if (![cId isKindOfClass:[NSString class]] || [cId length] == 0) return nil;
+    ch.chapterId = cId;
     
     id chNum = attrs[@"chapter"];
-    if (chNum && chNum != [NSNull null]) {
+    if (chNum && chNum != [NSNull null] && [chNum isKindOfClass:[NSString class]]) {
+        ch.chapterNumber = chNum;
+    } else if (chNum && chNum != [NSNull null]) {
         ch.chapterNumber = [NSString stringWithFormat:@"%@", chNum];
     } else {
         ch.chapterNumber = @"-";
@@ -32,8 +34,19 @@
         ch.title = [NSString stringWithFormat:@"Capítulo %@", ch.chapterNumber];
     }
     
-    ch.language = attrs[@"translatedLanguage"] ?: @"es";
-    ch.pagesCount = [attrs[@"pages"] integerValue];
+    id langObj = attrs[@"translatedLanguage"];
+    if (langObj && langObj != [NSNull null] && [langObj isKindOfClass:[NSString class]] && [langObj length] > 0) {
+        ch.language = langObj;
+    } else {
+        ch.language = @"es";
+    }
+    
+    id pagesVal = attrs[@"pages"];
+    if (pagesVal && pagesVal != [NSNull null]) {
+        ch.pagesCount = [pagesVal integerValue];
+    } else {
+        ch.pagesCount = 0;
+    }
     
     return ch;
 }

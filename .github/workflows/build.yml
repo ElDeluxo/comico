@@ -149,21 +149,21 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.3.5' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Comico & Mangie {0}', github.ref_name) || 'Comico & Mangie v1.3.5 (iOS 9.0+ Universal)' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.3.6' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Comico & Mangie {0}', github.ref_name) || 'Comico & Mangie v1.3.6 (iOS 9.0+ Universal)' }}
           files: |
             Comico_Universal_iOS9.ipa
             Comico_Universal_iOS9.deb
             Mangie_iPad_iOS9.ipa
             Mangie_iPad_iOS9.deb
           body: |
-            ### Comico Universal v1.3.5 & Mangie iPad Edition para iOS 9
+            ### Comico Universal v1.3.6 & Mangie iPad Edition para iOS 9
 
-            #### 🛡️ Modo Seguro y Opción de Omitir Miniaturas (v1.3.5):
-            - **Interruptor en Diagnóstico para Omitir Miniaturas:** Opción directa en la pestaña "Diagnóstico" para desactivar la descarga de portadas/miniaturas. Activada por defecto para garantizar estabilidad absoluta y cero cierres por Jetsam/OOM en iPads con 512 MB de RAM (iPad 2, iPad 3, iPad mini 1).
-            - **Tarjetas Estilizadas de Lectura Rápida:** Al omitir miniaturas, la cuadrícula muestra tarjetas estilizadas con acento de color distintivo por origen (Cómics occidentales en cyan/azul, Manga en coral, Manhwa en púrpura), títulos grandes y legibles, y estado de emisión sin esperas ni consumo de datos.
-            - **Downscaling en Background para Portadas:** Si el usuario decide activar las portadas, `ImageCache` reescala automáticamente las imágenes fuera del hilo principal a resolución de cuadrícula (~320px), reduciendo el consumo de memoria un 95% (de ~6 MB a ~300 KB por portada) y limitando el caché a 20 elementos.
-            - **Sincronización Dinámica:** Al activar o desactivar la opción en Diagnóstico, la interfaz de Explorar y Favoritos se actualiza inmediatamente sin reiniciar la app.
+            #### 🛠️ Corrección Crítica de Cierre al Tocar Cómic y Optimización (v1.3.6):
+            - **Fin al Cierre al Tocar un Cómic (Reemplazo de UITextView):** Se reemplazó el `UITextView` de la descripción del cómic por un `UILabel` ligero. En iOS 9, colocar un `UITextView` dentro de `tableHeaderView` provocaba un bucle infinito de TextKit y cierre instantáneo de la app al entrar al detalle.
+            - **Blindaje Total contra NSNull y Tipos Incompatibles:** Validación estricta con `isKindOfClass:[NSString class]` en todos los campos (`title`, `author`, `status`, `comicDescription`, `tags`, `language`, `chapterNumber`), evitando excepciones por selectores no reconocidos (`unrecognized selector`) provenientes de respuestas JSON.
+            - **Prevención de Doble Toque:** Protección ante toques rápidos repetidos en la cuadrícula y lista de capítulos para evitar animaciones concurrentes de `UINavigationController` en iOS 9.
+            - **Manejador Global de Excepciones (Crash Logger):** Se implementó un registrador de excepciones fatal (`NSSetUncaughtExceptionHandler`) que guarda el informe en disco y lo proyecta directamente en la pestaña **Diagnóstico**.
 
             #### 📦 Archivos para Descargar e Instalar:
             - **`Comico_Universal_iOS9.deb`** *(Recomendado para Jailbreak)*: Instalar con Filza File Manager o Cydia. No caduca.

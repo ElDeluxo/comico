@@ -114,86 +114,94 @@
 }
 
 - (void)configureWithComic:(Comic *)comic {
-    NSString *origin = comic.originBadge ?: @"Cómic";
-    UIColor *badgeColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.3 alpha:1.0];
-    UIColor *cardBgColor = [UIColor colorWithRed:0.14 green:0.13 blue:0.10 alpha:1.0];
-    UIColor *cardBorderColor = [UIColor colorWithRed:0.5 green:0.4 blue:0.2 alpha:0.4];
-    UIColor *originPillBg = [UIColor colorWithRed:0.40 green:0.30 blue:0.10 alpha:0.8];
-    
-    if ([comic.originalLanguage isEqualToString:@"en"]) {
-        badgeColor = [UIColor colorWithRed:0.3 green:0.75 blue:1.0 alpha:1.0]; // Cyan cómics occidentales
-        cardBgColor = [UIColor colorWithRed:0.10 green:0.13 blue:0.20 alpha:1.0];
-        cardBorderColor = [UIColor colorWithRed:0.25 green:0.45 blue:0.75 alpha:0.4];
-        originPillBg = [UIColor colorWithRed:0.15 green:0.30 blue:0.50 alpha:0.8];
-    } else if ([comic.originalLanguage isEqualToString:@"ko"]) {
-        badgeColor = [UIColor colorWithRed:0.8 green:0.5 blue:1.0 alpha:1.0]; // Púrpura Manhwa
-        cardBgColor = [UIColor colorWithRed:0.14 green:0.10 blue:0.18 alpha:1.0];
-        cardBorderColor = [UIColor colorWithRed:0.55 green:0.30 blue:0.75 alpha:0.4];
-        originPillBg = [UIColor colorWithRed:0.35 green:0.15 blue:0.50 alpha:0.8];
-    } else if ([comic.originalLanguage isEqualToString:@"ja"]) {
-        badgeColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0]; // Coral Manga
-        cardBgColor = [UIColor colorWithRed:0.18 green:0.10 blue:0.14 alpha:1.0];
-        cardBorderColor = [UIColor colorWithRed:0.70 green:0.30 blue:0.40 alpha:0.4];
-        originPillBg = [UIColor colorWithRed:0.50 green:0.15 blue:0.25 alpha:0.8];
-    }
-    
-    // Si la opción de omitir miniaturas está activada en Diagnóstico:
-    if (ComicoIsSkipThumbnailsEnabled()) {
-        self.coverImageView.hidden = YES;
-        self.gradientOverlay.hidden = YES;
-        [self.spinner stopAnimating];
+    @try {
+        NSString *origLang = [comic.originalLanguage isKindOfClass:[NSString class]] ? comic.originalLanguage : @"";
+        NSString *origin = [comic.originBadge isKindOfClass:[NSString class]] ? comic.originBadge : @"Cómic";
+        NSString *title = [comic.title isKindOfClass:[NSString class]] ? comic.title : @"Cómic";
+        NSString *status = [comic.status isKindOfClass:[NSString class]] ? comic.status : @"Disponible";
         
-        self.cardContainer.hidden = NO;
-        self.cardContainer.backgroundColor = cardBgColor;
-        self.cardContainer.layer.borderColor = cardBorderColor.CGColor;
-        self.cardContainer.layer.borderWidth = 1.0;
+        UIColor *badgeColor = [UIColor colorWithRed:1.0 green:0.75 blue:0.3 alpha:1.0];
+        UIColor *cardBgColor = [UIColor colorWithRed:0.14 green:0.13 blue:0.10 alpha:1.0];
+        UIColor *cardBorderColor = [UIColor colorWithRed:0.5 green:0.4 blue:0.2 alpha:0.4];
+        UIColor *originPillBg = [UIColor colorWithRed:0.40 green:0.30 blue:0.10 alpha:0.8];
         
-        self.cardOriginBadge.text = origin;
-        self.cardOriginBadge.textColor = badgeColor;
-        self.cardOriginBadge.backgroundColor = originPillBg;
-        
-        self.cardTitleLabel.text = comic.title;
-        self.cardStatusBadge.text = [NSString stringWithFormat:@"● %@", comic.status ?: @"Disponible"];
-        self.cardStatusBadge.textColor = badgeColor;
-        return;
-    }
-    
-    // Modo Normal con Portadas
-    self.cardContainer.hidden = YES;
-    self.coverImageView.hidden = NO;
-    self.gradientOverlay.hidden = NO;
-    
-    self.titleLabel.text = comic.title;
-    self.statusBadge.text = [NSString stringWithFormat:@"%@ • %@", origin, comic.status ?: @""];
-    self.statusBadge.textColor = badgeColor;
-    
-    if (!comic.coverURL || comic.coverURL.length == 0) {
-        self.coverImageView.image = nil;
-        self.coverImageView.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
-        return;
-    }
-    
-    self.currentImageURL = comic.coverURL;
-    
-    UIImage *cached = [[ImageCache sharedCache] imageForURL:comic.coverURL];
-    if (cached) {
-        self.coverImageView.image = cached;
-        [self.spinner stopAnimating];
-        return;
-    }
-    
-    [self.spinner startAnimating];
-    self.coverImageView.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
-    
-    NSString *requestedURL = comic.coverURL;
-    [[ImageCache sharedCache] loadImageForURL:requestedURL completion:^(UIImage *image) {
-        if ([self.currentImageURL isEqualToString:requestedURL]) {
-            [self.spinner stopAnimating];
-            if (image) {
-                self.coverImageView.image = image;
-            }
+        if ([origLang isEqualToString:@"en"]) {
+            badgeColor = [UIColor colorWithRed:0.3 green:0.75 blue:1.0 alpha:1.0]; // Cyan cómics occidentales
+            cardBgColor = [UIColor colorWithRed:0.10 green:0.13 blue:0.20 alpha:1.0];
+            cardBorderColor = [UIColor colorWithRed:0.25 green:0.45 blue:0.75 alpha:0.4];
+            originPillBg = [UIColor colorWithRed:0.15 green:0.30 blue:0.50 alpha:0.8];
+        } else if ([origLang isEqualToString:@"ko"]) {
+            badgeColor = [UIColor colorWithRed:0.8 green:0.5 blue:1.0 alpha:1.0]; // Púrpura Manhwa
+            cardBgColor = [UIColor colorWithRed:0.14 green:0.10 blue:0.18 alpha:1.0];
+            cardBorderColor = [UIColor colorWithRed:0.55 green:0.30 blue:0.75 alpha:0.4];
+            originPillBg = [UIColor colorWithRed:0.35 green:0.15 blue:0.50 alpha:0.8];
+        } else if ([origLang isEqualToString:@"ja"]) {
+            badgeColor = [UIColor colorWithRed:1.0 green:0.4 blue:0.5 alpha:1.0]; // Coral Manga
+            cardBgColor = [UIColor colorWithRed:0.18 green:0.10 blue:0.14 alpha:1.0];
+            cardBorderColor = [UIColor colorWithRed:0.70 green:0.30 blue:0.40 alpha:0.4];
+            originPillBg = [UIColor colorWithRed:0.50 green:0.15 blue:0.25 alpha:0.8];
         }
-    }];
+        
+        // Si la opción de omitir miniaturas está activada en Diagnóstico:
+        if (ComicoIsSkipThumbnailsEnabled()) {
+            self.coverImageView.hidden = YES;
+            self.gradientOverlay.hidden = YES;
+            [self.spinner stopAnimating];
+            
+            self.cardContainer.hidden = NO;
+            self.cardContainer.backgroundColor = cardBgColor;
+            self.cardContainer.layer.borderColor = cardBorderColor.CGColor;
+            self.cardContainer.layer.borderWidth = 1.0;
+            
+            self.cardOriginBadge.text = origin;
+            self.cardOriginBadge.textColor = badgeColor;
+            self.cardOriginBadge.backgroundColor = originPillBg;
+            
+            self.cardTitleLabel.text = title;
+            self.cardStatusBadge.text = [NSString stringWithFormat:@"● %@", status];
+            self.cardStatusBadge.textColor = badgeColor;
+            return;
+        }
+        
+        // Modo Normal con Portadas
+        self.cardContainer.hidden = YES;
+        self.coverImageView.hidden = NO;
+        self.gradientOverlay.hidden = NO;
+        
+        self.titleLabel.text = title;
+        self.statusBadge.text = [NSString stringWithFormat:@"%@ • %@", origin, status];
+        self.statusBadge.textColor = badgeColor;
+        
+        if (!comic.coverURL || ![comic.coverURL isKindOfClass:[NSString class]] || comic.coverURL.length == 0) {
+            self.coverImageView.image = nil;
+            self.coverImageView.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
+            return;
+        }
+        
+        self.currentImageURL = comic.coverURL;
+        
+        UIImage *cached = [[ImageCache sharedCache] imageForURL:comic.coverURL];
+        if (cached) {
+            self.coverImageView.image = cached;
+            [self.spinner stopAnimating];
+            return;
+        }
+        
+        [self.spinner startAnimating];
+        self.coverImageView.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1.0];
+        
+        NSString *requestedURL = comic.coverURL;
+        [[ImageCache sharedCache] loadImageForURL:requestedURL completion:^(UIImage *image) {
+            if ([self.currentImageURL isEqualToString:requestedURL]) {
+                [self.spinner stopAnimating];
+                if (image) {
+                    self.coverImageView.image = image;
+                }
+            }
+        }];
+    } @catch (NSException *ex) {
+        // Ignorar excepciones de renderizado
+    }
 }
 
 @end

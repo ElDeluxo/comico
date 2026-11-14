@@ -268,7 +268,11 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
             if (jp2Files.count > 1) {
                 // Caso A: Múltiples tomos/números con archivos procesados independientes (ej: Batman 001..050)
                 [jp2Files sortUsingComparator:^NSComparisonResult(NSDictionary *d1, NSDictionary *d2) {
-                    return [d1[@"name"] compare:d2[@"name"]];
+                    NSString *n1 = [d1 isKindOfClass:[NSDictionary class]] ? d1[@"name"] : nil;
+                    NSString *n2 = [d2 isKindOfClass:[NSDictionary class]] ? d2[@"name"] : nil;
+                    if (![n1 isKindOfClass:[NSString class]]) return NSOrderedAscending;
+                    if (![n2 isKindOfClass:[NSString class]]) return NSOrderedDescending;
+                    return [n1 compare:n2];
                 }];
                 
                 for (NSInteger i = 0; i < jp2Files.count; i++) {
@@ -288,7 +292,11 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
                 }
             } else if (pdfFiles.count > 1) {
                 // Caso B: Múltiples PDFs sin _jp2.zip individuales
-                [pdfFiles sortUsingSelector:@selector(compare:)];
+                [pdfFiles sortUsingComparator:^NSComparisonResult(id s1, id s2) {
+                    if (![s1 isKindOfClass:[NSString class]]) return NSOrderedAscending;
+                    if (![s2 isKindOfClass:[NSString class]]) return NSOrderedDescending;
+                    return [(NSString *)s1 compare:(NSString *)s2];
+                }];
                 for (NSInteger i = 0; i < pdfFiles.count; i++) {
                     NSString *pdf = pdfFiles[i];
                     NSString *baseName = [pdf stringByReplacingOccurrencesOfString:@".pdf" withString:@""];
@@ -313,11 +321,19 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
                     totalPages = 36;
                 }
                 
+                id rawMetaTitle = json[@"metadata"][@"title"];
+                NSString *metaTitle = @"Novela Gráfica Completa";
+                if ([rawMetaTitle isKindOfClass:[NSString class]]) {
+                    metaTitle = rawMetaTitle;
+                } else if ([rawMetaTitle isKindOfClass:[NSArray class]] && [rawMetaTitle count] > 0) {
+                    metaTitle = [NSString stringWithFormat:@"%@", [rawMetaTitle firstObject]];
+                }
+                
                 if (totalPages <= 64) {
                     Chapter *ch = [[Chapter alloc] init];
                     ch.chapterId = [NSString stringWithFormat:@"ia__%@__range__0__%ld", ident, (long)totalPages];
                     ch.chapterNumber = @"1";
-                    ch.title = json[@"metadata"][@"title"] ?: @"Novela Gráfica Completa";
+                    ch.title = metaTitle;
                     ch.language = @"en";
                     ch.pagesCount = totalPages;
                     [chapters addObject:ch];
@@ -481,25 +497,29 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     [req setValue:@"application/json" forHTTPHeaderField:@"Accept"];
     
     [[TLSHTTPClient sharedClient] performRequest:req completion:^(NSData *data, NSHTTPURLResponse *httpRes, NSError *netError) {
-        if (netError) {
-            completion(nil, netError);
+        if (netError || !data || data.length == 0) {
+            completion(nil, netError ?: [NSError errorWithDomain:@"com.comico" code:-102 userInfo:@{NSLocalizedDescriptionKey: @"Respuesta sin datos"}]);
             return;
         }
         
         if (httpRes && (httpRes.statusCode < 200 || httpRes.statusCode >= 300)) {
-            NSError *err = [NSError errorWithDomain:@"com.comico" code:httpRes.statusCode userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error HTTP %ld al conectar con MangaDex", (long)httpRes.statusCode]}];
+            NSError *err = [NSError errorWithDomain:@"com.comico" code:httpRes.statusCode userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error HTTP %ld", (long)httpRes.statusCode]}];
             completion(nil, err);
             return;
         }
         
-        NSError *jsonError = nil;
-        NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-        if (jsonError || ![json isKindOfClass:[NSDictionary class]]) {
-            completion(nil, jsonError ?: [NSError errorWithDomain:@"com.comico" code:-101 userInfo:@{NSLocalizedDescriptionKey: @"Error al procesar JSON"}]);
-            return;
+        @try {
+            NSError *jsonError = nil;
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+            if (jsonError || ![json isKindOfClass:[NSDictionary class]]) {
+                completion(nil, jsonError ?: [NSError errorWithDomain:@"com.comico" code:-101 userInfo:@{NSLocalizedDescriptionKey: @"Error al procesar JSON"}]);
+                return;
+            }
+            completion(json, nil);
+        } @catch (NSException *ex) {
+            ComicoLog(@"❌ Excepción al procesar JSON: %@", ex.reason);
+            completion(nil, [NSError errorWithDomain:@"com.comico" code:-103 userInfo:@{NSLocalizedDescriptionKey: ex.reason ?: @"Error JSON"}]);
         }
-        
-        completion(json, nil);
     }];
 }
 
