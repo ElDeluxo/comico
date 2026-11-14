@@ -350,7 +350,7 @@ static int safe_drbg_random(void *p_rng, unsigned char *output, size_t output_le
             // 3. Si es Transfer-Encoding: chunked: comprobar si llegó el chunk terminal "0\r\n\r\n"
             if (headerLength >= 0 && isChunked) {
                 NSData *endChunk = [@"\r\n0\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding];
-                NSRange endR = [responseRaw rangeOfData:endChunk options:NSBackwardsSearch range:NSMakeRange(headerLength, responseRaw.length - headerLength)];
+                NSRange endR = [responseRaw rangeOfData:endChunk options:NSDataSearchBackwards range:NSMakeRange(headerLength, responseRaw.length - headerLength)];
                 if (endR.location != NSNotFound && (endR.location + endR.length == responseRaw.length)) {
                     break; // ¡Chunk final recibido! Salir de inmediato
                 }
